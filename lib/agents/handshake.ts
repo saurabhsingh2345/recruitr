@@ -12,6 +12,7 @@ import { Profile } from '@/lib/models/Profile'
 import { RoleSpec, type IRoleSpec } from '@/lib/models/RoleSpec'
 import { Handshake, type IHandshake } from '@/lib/models/Handshake'
 import { atlasEvaluate } from './atlas'
+import { createNotification } from '@/lib/notifications'
 import type { CandidateSnapshot, RoleSnapshot } from './fit'
 
 export function roleToSnapshot(role: IRoleSpec): RoleSnapshot {
@@ -222,6 +223,17 @@ export async function runHandshake(
     },
     { upsert: true, new: true }
   )
+
+  if (gates.mutualFit) {
+    const companyLabel = role.blind ? 'a company' : (role.company || 'a company')
+    createNotification(
+      candidateId,
+      'handshake_surfaced',
+      'A role matched you',
+      `You matched ${role.title || 'a role'} at ${companyLabel} — they want to connect.`,
+      '/agent'
+    ).catch(() => {})
+  }
 
   return doc
 }

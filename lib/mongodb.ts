@@ -11,16 +11,36 @@ declare global {
   var _mongoose: { conn: typeof mongoose | null; promise: Promise<typeof mongoose> | null }
 }
 
-const cached = global._mongoose || { conn: null, promise: null }
-global._mongoose = cached
+if (!global._mongoose) {
+  global._mongoose = { conn: null, promise: null }
+}
+const cached = global._mongoose
 
 export async function connectDB() {
-  if (cached.conn) return cached.conn
+  // If we have an active connection, reuse it
+  if (cached.conn && mongoose.connection.readyState === 1) return cached.conn
+
+  // If a connection attempt is already in flight, wait for it
   if (!cached.promise) {
-    cached.promise = mongoose.connect(MONGODB_URI, {
-      bufferCommands: false,
-    })
+    cached.promise = mongoose
+      .connect(MONGODB_URI, {
+        bufferCommands: false,
+        serverSelectionTimeoutMS: 10000,
+        socketTimeoutMS: 45000,
+      })
+      .catch((err) => {
+        // Clear the failed promise so the next call retries
+        cached.promise = null
+        throw err
+      })
   }
-  cached.conn = await cached.promise
+
+  try {
+    cached.conn = await cached.promise
+  } catch (err) {
+    cached.promise = null
+    throw err
+  }
+
   return cached.conn
 }

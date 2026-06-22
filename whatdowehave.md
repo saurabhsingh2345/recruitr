@@ -1,205 +1,495 @@
 # What We Have Built — Intervue
 
-*Internal document for investor conversations. Accurate as of June 2026.*
+*Internal document for investor conversations. Accurate as of June 2026 — last updated 2026-06-22 (cross-session memory engine, company-mode simulation, peer interview mode, team skill graph, year-in-review wrapped card, onboarding flow, score confidence bands in UI, GitLab Settings card, handshake + recruiter-viewed notifications wired, password change).*
 
 ---
 
 ## The One-Line Version
 
-Intervue is a verified technical identity platform with an AI interview engine on the candidate side and an autonomous agent-to-agent matching protocol on the recruiter side. The agents talk to each other before either human is involved.
+Intervue is a verified technical identity platform with an AI interview engine on the candidate side and an autonomous agent-to-agent matching protocol on the recruiter side. The agents negotiate fit before either human is involved.
 
 ---
 
 ## What Is Shipped and Running
 
-### 0. GitHub Sync
+### 1. GitHub Sync
 
-Candidates sync their GitHub profile by clicking "Sync repos" in Settings → Connections. The sync always fetches **live, uncached data** from the GitHub API (`cache: 'no-store'`) — new repos pushed minutes ago are picked up immediately. Up to 50 repositories are scanned (sorted by most recently updated), non-fork repos only. Languages, topics, repo complexity, and star counts feed directly into skill proof scores.
+Candidates sync their GitHub profile from Settings → Connections. The sync fetches **live, uncached data** from the GitHub API — new repos pushed minutes ago are picked up immediately. Up to 50 repositories are scanned (most recently updated, non-forks only). Languages, topics, repo complexity, and star counts feed directly into proof scores.
 
-### 1. AI Interview Engine
+A background BullMQ job handles large syncs. If Redis is unavailable the sync runs inline — the app degrades gracefully.
 
-Candidates can start a technical interview in five formats: **coding, system design, project deep-dive, behavioural, and gap sessions** (targeted skill drills). Every session is personalized — the AI reads the candidate's actual GitHub repos at session start and asks questions grounded in real projects they've pushed.
+---
 
-- Sessions stream responses in real-time (Vercel AI SDK streaming).
-- There is a live Monaco code editor inside the interview with support for JavaScript, TypeScript, Python, Go, Java, C++, and Rust.
-- Code runs against Judge0 for execution feedback.
-- Voice mode is implemented using the browser's SpeechRecognition + SpeechSynthesis APIs (Chrome/Safari). Turn-based, no external voice API dependency.
-- Candidates can request Socratic hints — the AI nudges without giving away answers.
-- At session end the AI analyzes the full transcript and produces a structured assessment: overall score, four-axis breakdown (technical depth, problem-solving, communication, code quality), strengths, gaps, and study recommendations.
-- Session scores feed back into the candidate's skill profile (weighted blend of existing score and new performance). Score history is tracked per skill over time.
-- Streak tracking is live: daily practice streaks with freeze tokens to protect them.
-- **Completed reports can be shared publicly** via a Pro-gated share link (`/interview/report/shared/[token]`) — a candidate can send a recruiter a direct link to their verified interview performance without them needing an account.
+### 2. AI Interview Engine
 
-### 2. Verified Skill Profile
+Candidates start a technical interview in five formats: **coding, system design, project deep-dive, behavioural, and gap** (targeted skill drills). Every session is personalized — the AI reads the candidate's actual GitHub repos at session start and asks questions grounded in real projects.
 
-Every candidate has a profile that stores **proofScores** (0–100) per skill. These are not self-reported. They are derived from:
+- Responses stream in real-time via Vercel AI SDK.
+- Monaco code editor inside the interview: JavaScript, TypeScript, Python, Go, Java, C++, Rust.
+- Code execution against Judge0.
+- Voice mode via browser SpeechRecognition + SpeechSynthesis (no external API).
+- Socratic hints — the AI nudges without giving away answers.
+- At session end the AI produces: overall score, four-axis breakdown (technical depth, problem-solving, communication, code quality), strengths, gaps, study recommendations, **ideal answers** (expert 2–3 sentence responses per question asked), and an **AI verdict** — a single punchy sentence under 80 characters summarising demonstrated capability. Stored on the insight report.
+- Scores feed back into the candidate's skill profile (weighted blend of existing score + new performance for existing skills; interview score clamped 20–100 for newly discovered skills). Every session appends to the per-skill score history.
+- Daily streak tracking with freeze tokens.
+- **Shareable public reports** — Pro candidates can share a `/interview/report/shared/[token]` link. Recruiters can view verified interview performance without needing an account.
+- **Session proof receipt** — after a session completes, a full-screen receipt is shown before the report: score in large monospace, skill delta (before → after +N), AI verdict, and two buttons (View full report / Share). OG image at `/api/receipt/[sessionId]` — dark 1200×630 card with score, format, delta, and verdict.
+- **Session abandonment** — if the browser is closed mid-session, `navigator.sendBeacon` fires a `POST /api/interview/[id]/abandon` which marks the session `abandoned` so it doesn't linger as `in_progress` forever.
+- **Markdown rendering** — interviewer and candidate messages render with a custom lightweight renderer. Handles fenced code blocks with language labels, numbered and bullet lists, H2/H3 headers, bold/italic/inline code. Applied to both the live session chat and the transcript tab on the report page.
 
-- **GitHub repos** — parsed via GitHub API directly. Languages, repo complexity, recency, and commit history feed a scoring formula: `score = evidenceCount × 0.4 + repoComplexity × 0.3 + recencyScore × 0.3`.
-- **Resume** — uploaded as PDF, text extracted and parsed by the AI against actual project evidence in the repo history.
-- **Interview sessions** — each completed session updates the relevant skill's proofScore.
-- **External sources** (active parsers, no OAuth required):
-  - DEV.to — articles, tags, reaction counts → technical writing + topic signals
-  - Stack Overflow — reputation, top answer tags, answer quality
+---
+
+### 3. Verified Skill Profile
+
+Every candidate has a profile with **proofScores** (0–100) per skill. Not self-reported. Derived from:
+
+- **GitHub repos** — languages, complexity, recency, commit history. Formula: `score = evidenceCount × 0.4 + repoComplexity × 0.3 + recencyScore × 0.3`.
+- **Resume PDF** — extracted and parsed by the AI against actual project evidence.
+- **Interview sessions** — each completed session updates the relevant skill score.
+- **External sources** (active parsers):
+  - DEV.to — articles, tags, reaction counts → technical writing signal
+  - Stack Overflow — reputation, top answer tags → answer quality signal
   - Hacker News — karma, years active → community engagement signal
-  - LinkedIn — integrated via a Python/Playwright scraper microservice; requires `LINKEDIN_LI_AT` cookie and the microservice running
+  - LinkedIn — via Python/Playwright scraper microservice; requires `LINKEDIN_LI_AT` cookie
+  - **GitLab** — public REST API (no OAuth); fetches up to 30 repos, extracts skills via AI, computes proofScore from evidence count + repo complexity + recency. Surfaced in Settings → Connections tab.
+  - **Twitter/X** — bio + 20 recent tweets → AI skill extraction; scaffolded at `/api/profile/sync/twitter`; blocked on `TWITTER_BEARER_TOKEN` env var.
 
-The `/connections` page lets candidates register handles on each source. A sync button kicks off parsing and merges signals into the skill graph. This can run synchronously or be queued via BullMQ if Redis is configured.
+**Score history** is stored per skill (`scoreHistory: { score, source, at }[]`) — every sync and every session appends to this log, forming the raw data for sparklines.
 
-**Score history** is stored per skill over time (`scoreHistory: { score, source, at }[]`). Every sync and every interview session appends to this log — forming the raw data for sparklines and trend analysis.
+**Score confidence bands** — `getConfidenceBand(scoreHistory)` in `lib/scoring.ts` computes a ±σ interval from score history standard deviation. Displayed in the UI: the dashboard `SkillLegendRow` shows the score with `±σ` below it in small monospace when the candidate has ≥3 sessions with non-zero sigma; the public profile `/p/[username]` skill rows do the same. A candidate with sessions clustered at 82–85 shows `82 ± 2`; one with erratic 60–90 swings shows `75 ± 15`.
 
-Each skill has evidence lines (human-readable citations like "Wrote 4 DEV.to articles on TypeScript — 210 reactions") that are stored and shown on the public profile and used by the agents.
+Each skill has evidence lines stored and displayed everywhere a score appears. The evidence count ("8 sources") is shown alongside every score on the public profile, the dashboard, and recruiter cards.
 
-**Cohort ranking** is calculated across all verified candidates and shown on the dashboard as "Top X%" — for example, "Top 10%" means the candidate's average proof score beats 90% of the cohort. It recalculates on every profile sync and surfaces on the leaderboard (top 50 by percentile, public).
+**Cohort ranking** — the candidate's average proof score is compared against all verified candidates and expressed as a percentile ("Top 10%"). Recalculates on every profile sync and immediately after every completed interview session.
 
-### 3. Public Profile, Shareable Badges, and Proof Pages
+---
 
-Every candidate has a public profile at `/p/[username]` with their bio, skill constellation visualization, scored skills with evidence citations, projects from GitHub, and experience/education from the resume. The profile supports four visual themes (Minimal, Terminal, Magazine, Bento) fully customizable from the settings page.
+### 4. Public Profile, Shareable Badges, Proof Pages, and Embeds
 
-Each skill has a **proof page** at `/proof/[username]/[skill]` showing the detailed evidence behind one score — the specific repos, articles, and interviews that produced it. This page has correct OpenGraph tags so that LinkedIn and Twitter unfurl it with the badge image as the preview.
+Every candidate has a public profile at `/p/[username]`. The default layout shows:
 
-Each skill also has a **shareable badge** — a 400×80 image generated at the edge (`/api/badge/[username]/[skill]`) showing the candidate name, skill name, and live proof score. These are designed to be embedded in LinkedIn, GitHub README, or resumes. The markdown snippet is `[![Skill 84](badgeUrl)](proofUrl)` — clicking the badge in a README lands on the proof page, not just an image.
+- **Header:** avatar, name, bio, and Verified/Vouched badges on the left. The candidate's **"Top X%"** cohort rank in large monospace type on the right.
+- **Ranked skill list:** all verified skills sorted by score, each row showing a thin progress bar, a monospace score with ±σ confidence band, and an evidence source count.
+- GitHub projects, experience, education, and a recruiter contact CTA below the fold.
 
-### 4. Atlas — The Candidate's AI Agent
+Two visual themes — **Minimal** and **Terminal** — selectable via `?theme=` param or Settings.
+
+**Rank card OG image** — `GET /api/rank-card/[username]` returns a 1200×630 image: dark background, "Top X%" at ~150px in monospace, top skill name and score below it. Automatically used as the `og:image` for every `/p/[username]` URL.
+
+**Share buttons** — `RankCardShare` component: Share on X (pre-filled tweet), Share on LinkedIn, and copy link.
+
+**Proof pages** at `/proof/[username]/[skill]` — detailed evidence behind one score.
+
+**Skill badge** — 400×80 edge-rendered image at `/api/badge/[username]/[skill]`. Embed in LinkedIn, GitHub READMEs, resumes.
+
+**Summary badge** — 600×80 edge-rendered image at `/api/badge/[username]/summary` — top 3 skills side-by-side with color-coded scores.
+
+**README snippet generator** — Settings → Connections tab: live badge preview + markdown snippet + GitHub Actions YAML that auto-refreshes the badge weekly.
+
+**Embeds** — each proof skill has an iframe embed URL at `/embed/[username]/[skill]`. Returns raw HTML with an inline SVG score ring, `X-Frame-Options: ALLOWALL`, `frame-ancestors: *`.
+
+---
+
+### 5. Verified badge + Vouched badge
+
+Candidates with a GitHub connection and at least one assessed skill show a **Verified** badge on their public profile.
+
+Candidates who have referred 3+ others who each completed a proof session earn a **Vouched** badge — a second badge shown alongside Verified on `/p/[username]`.
+
+---
+
+### 6. Candidate Onboarding Flow
+
+New candidates who sign in with GitHub land on the dashboard. If `profile.onboardingComplete !== true`, a full-screen overlay modal appears — **OnboardingModal** — walking through three steps:
+
+1. **Step 0 — GitHub connected:** confirms the connection, shows the top repo with its language chip. CTA: "See what we found →" or "Skip for now".
+2. **Step 1 — First interview:** proposes a format derived from the top repo language (`coding` if a language was detected, `project_deepdive` otherwise). One button starts the session and routes to the interview page.
+3. **Step 2 — Proof scores ready:** shown when the candidate returns to the dashboard after completing that first session. Displays top 4 skills with color-coded bars and scores. CTA: "View your profile →" marks onboarding complete and navigates to the public profile.
+
+Progress is tracked via `Profile.onboardingStep` and `Profile.onboardingComplete`. Two API routes: `POST /api/onboarding/step` (update step) and `POST /api/onboarding/skip` (mark complete + step=99).
+
+---
+
+### 7. Atlas — The Candidate's AI Agent
 
 Atlas is not a chatbot. It is an AI that works for the candidate 24/7 on their behalf.
 
-**Atlas speaks first.** When a candidate opens their agent page, Atlas has already analyzed their profile and leads with the most important insight: which skill is blocking a live recruiter match, or which score has decayed most. The candidate doesn't have to ask.
+**Atlas speaks first.** When a candidate opens the agent page, Atlas has already analyzed their profile and leads with the most important insight.
 
-**Atlas as a conversational coach.** The agent page has a full chat interface wired to Groq (`llama-3.3-70b-versatile`). Atlas has complete context on the candidate's skill scores, pending opportunities, comp preferences, and discoverability setting. Candidates can ask anything: "Why did this role not match me?", "Which skill should I practice this week?", "What's a good score for a senior role?". The proactive insight is injected as Atlas's first message — the conversation starts from a position of knowledge, not a blank prompt.
+**Conversational coach.** Full chat interface wired to Groq. Atlas has complete context on skill scores, pending opportunities, comp preferences, and discoverability setting.
 
-**Atlas enforces preferences.** Candidates set their own preferences (comp floor, locations, stages, dealbreakers) and their discoverability (`open`, `passive`, `invisible`). Invisible candidates are never surfaced — not even to their own agent. This gives the candidate genuine control, which is the consent layer that makes the system trustworthy.
+**Preferences enforcement.** Candidates set comp floor, locations, stages, dealbreakers, and discoverability (`open`, `passive`, `invisible`). Invisible candidates are never surfaced.
 
-**Skill rings and sparklines.** The left panel of the agent page shows the candidate's top skills as circular progress rings with live proofScores. Below each ring is a recharts sparkline drawn from the score history — a candidate can see at a glance whether their React score is trending up or flat.
+**Two-column layout.** Left column (42%) contains the Atlas chat and opportunities inbox. Right column (58%) contains skill rings and tabbed secondary tools.
 
-### 5. The Two-Agent Matching System — The Core Differentiator
+**Skill rings and sparklines.** Top row shows top skills as circular progress rings with live proofScores and Recharts sparklines.
 
-This is the product bet. The problem with recruiting is spam: recruiters blast inMails; candidates ignore them. Both sides waste time on conversations that were never going to work.
+**Tabbed right panel.** Four tabs: **Skill path**, **Market**, **Learning**, **Negotiate**.
 
-Our answer is that **two AI agents — Atlas (candidate-side) and Scout (recruiter-side) — negotiate fit before either human is contacted**.
+- **Skill path tab** — SkillUnlockPath + **MemoryInsights** widget. MemoryInsights polls `/api/me/memory` and displays recurring weak areas identified across past sessions (severity-coded, seen Nx count). Gives the candidate a concrete weakness list grounded in actual interview performance.
 
-**How it works end-to-end:**
+- **Market** — market intelligence feed (demand scores per skill, week-over-week delta).
 
-1. A recruiter creates a role by pasting a job description. Scout structures it into a typed spec: must-have skills with minimum proof scores, nice-to-have skills, compensation range (₹ LPA), acceptable locations, company stage, domain, team context, and dealbreakers.
+- **Learning** — phased learning plan per skill (current → target level, estimated weeks, per-phase resources).
 
-2. The recruiter clicks "Source" on a role. Scout pre-filters the verified candidate pool by skill presence in MongoDB, sorted by cohort percentile.
+- **Negotiate** — offer analysis and counter-offer coaching with talking points from verified proof scores.
 
-3. For each candidate in the pool, the **Handshake Protocol** runs:
+**Weekly career brief.** Every Monday at 08:00 UTC, personalized email from Atlas.
+
+---
+
+### 8. Cross-Session Memory Engine
+
+The platform now tracks **recurring weaknesses across sessions** and uses them to sharpen every subsequent interview.
+
+**How it works:**
+
+1. When a session completes, `extractWeaknessSignals(sessionId, gaps[])` runs fire-and-forget. It calls the LLM to parse the session's gap list into structured signals: `{ skill, topic, severity: 1|2|3 }`. Saved to `insightReport.weaknessSignals[]` on the session document.
+
+2. When a new session is started, `getCandidateMemory(userId)` aggregates signals from the last 5 completed sessions. Signals that appear in 2+ sessions OR have severity 3 are surfaced as "recurring weaknesses". The result is a formatted string injected into the opening interview prompt and stored as `session.memoryContext`.
+
+3. Every subsequent AI response in that session also sees the memory via `contextualSystem` in the respond route — the AI knows which topics to probe harder.
+
+4. The **MemoryInsights** component in the Atlas skills tab shows the candidate their own weakness map: topic, skill category, severity label (Minor / Recurring / Critical), and session count. This is the candidate-facing surface of the memory layer.
+
+**Why it matters:** the AI doesn't start from zero each session. It treats each interview as a chapter in a continuing story, drilling harder on the candidate's known weak spots.
+
+---
+
+### 9. Company-Mode Simulation
+
+Candidates can paste a job description before starting any interview session. The platform mirrors that company's interview style for the entire session.
+
+**How it works:**
+
+- A **CompanyModeToggle** component sits in the dashboard's "Start a session" section — a collapsible card with a JD textarea. Active when paste length > 20 characters.
+- On session start, if a JD is present, `analyzeCompanyStyle(jd)` calls the LLM to extract: inferred company name, and a 2–3 sentence interview style description (technical depth, focus areas from the JD, culture signals).
+- The style string is stored as `session.companyMode.style` and injected into both the opening prompt and every subsequent `contextualSystem` in the respond route under a `[COMPANY MODE]` marker.
+- The AI conducts the entire interview as if it were that company — matching their stated technical depth, focusing on the skills they care about, and reflecting their culture signals.
+
+---
+
+### 10. Peer Interview Mode
+
+Candidates can practice interviewing each other — one takes the **interviewer** role, one takes the **candidate** role. An AI moderator observes and drops coaching tips.
+
+**Flow:**
+
+1. Candidate goes to `/peer/find` — selects format (coding / design / behavioural), skill focus, and preferred role.
+2. The queue API (`POST /api/peer/queue`) tries to match with an existing waiting session for the same skill + format. If matched, both enter the session immediately. If not, a new session is created in `waiting` status and the client polls every 5 seconds.
+3. On match, the AI moderator drops a welcome message via Groq (both names, format, instructions).
+4. Both participants chat on `/peer/[sessionId]` — a two-role interface showing AI moderator messages in a distinct purple style. Polling every 3 seconds.
+5. Every 6 human messages, the AI moderator optionally drops a single-sentence coaching tip for either participant (silently skipped if things are going well).
+6. Either participant can end the session. The interviewer can score the candidate (0–100 slider). On end, the AI generates a 3-sentence summary: what the candidate demonstrated, one area to improve, one tip for the interviewer.
+
+**Model:** `PeerSession` — skill, format, status (`waiting / active / completed / abandoned`), participants with roles, messages with sender role, AI summary, interviewer score.
+
+---
+
+### 11. Team Skill Graph
+
+Candidates can create teams — small groups (up to 20 members) who share their skill snapshots to visualize collective coverage and gaps.
+
+**Flow:**
+
+1. Create a team (name it) — generates an 8-character nanoid invite code.
+2. Share invite link: `/team/join/[code]`. Joining fetches the user's current top 8 skill scores and adds them to the team's member list.
+3. On the team page `/teams/[id]`: member list with skill chips, invite code with copy + regenerate buttons.
+4. Click "Generate skill graph" → calls `/api/teams/[id]/analysis` which:
+   - Aggregates proof scores across all members for 10 canonical skills.
+   - Computes team average and max-member score per skill.
+   - Identifies **strengths** (top 3 by team avg) and **gaps** (avg < 50 or coverage < half the team).
+   - Calls Groq to write a 2–3 sentence hire recommendation specific to the gaps.
+5. Result renders as a Recharts **RadarChart** with two overlapping polygons (team avg + best member), plus strengths/gaps columns and the AI hire recommendation.
+
+**Why it matters for investor narrative:** teams evaluate themselves before hiring. Intervue becomes the tool engineering managers use to understand their own gap before opening a JD.
+
+---
+
+### 12. Year-in-Review Wrapped Card
+
+Every candidate has a `/wrapped/[year]` page — a shareable summary of their year in technical interviews.
+
+**Data aggregated:**
+- Total sessions completed
+- Average score across all sessions
+- Top skill (most practiced)
+- Favourite format
+- Best single session (score + skill)
+- Peak proof score across all current skills
+- Longest daily streak
+- Monthly activity bar chart (sessions per month)
+
+**UI:**
+- Stat cards for sessions, avg score, best streak
+- Detail cards for top skill, favourite format, best session, peak proof score
+- Animated monthly bar chart
+- Share buttons: post on X (pre-filled tweet), save OG image (PNG download), copy link
+
+**OG image** — edge-rendered 1200×630 at `/api/wrapped/[year]/image?name=...&sessions=...&avg=...&skill=...&streak=...`. Dark gradient background, large monospace stats, suitable for social sharing.
+
+**Dashboard CTA** — a wrapped card appears on the dashboard when the candidate has ≥3 completed sessions. In December it links to the current year; otherwise it links to the previous year.
+
+---
+
+### 13. The Two-Agent Matching System — The Core Differentiator
+
+The problem with recruiting is spam. Our answer: **Atlas (candidate-side) and Scout (recruiter-side) negotiate fit before either human is contacted**.
+
+**End-to-end flow:**
+
+1. Recruiter pastes a job description. Scout structures it into a typed spec: must-have skills with minimum proof scores, nice-to-have skills, comp range (₹ LPA), locations, company stage, domain, team context, dealbreakers.
+
+2. Recruiter clicks "Source". Scout pre-filters the verified pool by skill presence, sorted by cohort percentile.
+
+3. **Handshake Protocol** runs per candidate:
    - Scout sends a fit inquiry to Atlas.
-   - Atlas evaluates the role against the candidate's verified evidence using **deterministic hard gates**:
-     - Tech bar: does every must-have skill have a proofScore ≥ the required minimum?
-     - Comp overlap: does the role's max pay meet the candidate's floor?
-     - Location: is there geographic overlap?
-     - Stage: is the company stage in the candidate's acceptable list?
-     - Dealbreakers: does the role description contain any of the candidate's listed dealbreakers?
-   - The LLM only writes the human-facing reasoning and answers specific recruiter "asks" (e.g. "does this person have production Kubernetes experience?") — strictly from verified evidence. It cannot invent skills.
-   - If `mutualFit = false`: Handshake status is set to `declined_by_atlas`. Neither human is ever bothered.
-   - If `mutualFit = true`: Atlas generates a warm surfacing message and the candidate sees it on their agent page.
+   - Atlas evaluates against **deterministic hard gates**: tech bar (every must-have skill at or above minimum proofScore), comp overlap, location, stage, dealbreakers.
+   - The LLM writes human-facing reasoning and answers specific recruiter "asks" — strictly from verified evidence. It cannot invent skills.
+   - `mutualFit = false` → status `declined_by_atlas`. Neither human is bothered.
+   - `mutualFit = true` → Atlas generates a warm surfacing message. Candidate receives an **in-app notification** (`handshake_surfaced`) and sees it on their agent page.
 
-4. The candidate sees only genuine matches, with an explanation of why their agent surfaced this one. They can accept or decline. Accepting opens an Application thread and notifies the recruiter.
+4. Candidate sees the skill-check sequence animated on their agent page: "Checking React 84 ≥ 80 → Cleared", "Checking Docker 55 ≥ 60 → Below bar".
 
-5. **Evidence snapshots** are captured at evaluation time: every agent exchange that cites a skill stores the candidate's actual proofScore at that moment (`evidenceSnapshot: { skillName, proofScore, snapshotAt }[]`). The verdict also records per-skill match results (`skillMatches: { skill, required, candidateScore, cleared }[]`). This means the audit trail is immutable — a score inflated after the fact doesn't retroactively change what was claimed.
+5. **Evidence snapshots** captured at evaluation time — immutable audit trail.
 
-6. **The in-progress reveal** is visible to the candidate. When they expand a surfaced opportunity, they see an animated skill-check sequence: "Checking React 84 ≥ 80 → Cleared", "Checking Docker 55 ≥ 60 → Below bar". This makes the agent's logic transparent and earns trust.
+6. Full agent transcript visible to recruiter on the role detail page.
 
-7. The full agent transcript (every exchange between Scout and Atlas) is stored and visible to the recruiter on the role detail page — complete auditability.
+**Why this matters:** the hard gates are deterministic code. The LLM sits on top of a trust layer it cannot subvert.
 
-**Why this matters:** The hard gates are deterministic code, not LLM guesses. An agent cannot hallucinate that a candidate has Kubernetes experience if their proofScore for that skill doesn't meet the bar. The LLM sits on top of a trust layer it cannot subvert.
+---
 
-### 6. Recruiter Product
+### 14. In-App Notification Centre
 
-- Separate auth (email + password, bcryptjs) — GitHub OAuth is only for candidates.
-- Recruiter onboarding captures company name, size, and open roles.
-- Recruiter dashboard: pipeline stats, top matches, recent activity, natural language search bar.
-- **Roles** page: create, view, and manage open roles. Each role shows all Handshake results with verdict chips (tech bar cleared, comp overlap, location match, etc.) and the full agent dialogue.
-- **Candidate cards** show: avatar, open-to-work status dot, last active timestamp, location, and skill chips that link directly to `/proof/[username]/[skill]` — a recruiter can click a skill chip and land on the proof page for that specific claim in one click.
-- **Candidate search**: filter the verified pool by skill name, minimum proof score, location. Returns profiles ranked by cohort percentile.
-- **Kanban pipeline**: Applications move between New Inquiry → Screening → Interview → Offer → Closed with drag-and-drop. Each card links to the conversation thread.
-- **ATS API**: `GET /api/ats/candidates/search?skill=X&minScore=70&location=Y` authenticated by `x-api-key`. Returns paginated candidates with top skills and proof scores. Enterprise ATS systems can integrate without touching the UI.
-- Email notifications via Resend for new messages and scheduled interviews.
-- Interview scheduling with `.ics` calendar file generation.
-- Password reset flow for recruiter accounts.
+Candidates have a **bell icon** in the sidebar header showing an unread count badge. Clicking it opens a dropdown with the last 30 notifications, newest first.
 
-### 7. Application Threading
+Notification types: `interview_complete`, `score_milestone`, `leaderboard_entry`, `certificate_issued`, `handshake_surfaced`, `weekly_brief`, `recruiter_viewed`. Each entry shows a type emoji, title, body (truncated), and relative timestamp ("3m ago").
 
-When a Handshake converts (candidate accepts), an Application record is created. Candidates and recruiters can exchange messages in a dedicated thread at `/messages/[id]`. The recruiter can update the application status, record an outcome (hired / rejected / withdrawn), and schedule interviews.
+**API:**
+- `GET /api/notifications/inbox` — last 30 notifications + unread count
+- `PATCH /api/notifications/inbox` — mark all as read (called automatically on open)
+- `PATCH /api/notifications/read/[id]` — mark single notification as read
 
-### 8. Billing — Pro Tier
+**Where notifications are created:**
+- Interview complete (`interview_complete`) — immediately after session finishes
+- Certificate issued (`certificate_issued`) — when a milestone is crossed
+- Leaderboard entry (`leaderboard_entry`) — when the Monday cron fires
+- Handshake surfaced (`handshake_surfaced`) — when `mutualFit = true` in the Handshake Protocol. Company name included; hidden if role has blind mode enabled.
+- Recruiter viewed (`recruiter_viewed`) — when a recruiter calls the reveal endpoint on a candidate's profile. Deduplicated: only one notification per candidate per 24-hour window regardless of how many recruiters view.
 
-Intervue has a paid Pro tier at **₹399/month** via Stripe (UPI, cards, net banking supported).
+**Model:** `Notification` — userId, type, title, body, link, read, createdAt. Auto-expires after 90 days via MongoDB TTL index.
 
-Free tier includes: unlimited AI interview sessions, GitHub profile analysis, public profile + badges + proof pages, Atlas agent access.
+---
 
-Pro tier adds:
-- **Additional data sources** — LinkedIn, Stack Overflow, DEV.to connections (GitHub is always free — protecting the growth flywheel)
-- **Score history sparklines** on the dashboard and agent panel
-- **Score-change email alerts** — when a connection sync changes a skill score, Pro users receive a formatted email showing before/after/delta for each changed skill
-- **Public report share links** — shareable interview reports accessible without auth
-- **Priority ranking** in recruiter search results
+### 15. Scout — Autonomous Sourcing
 
-The webhook handler processes `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`, and `invoice.payment_failed` events. Subscription state (tier, status, period end) is stored on the User document.
+Scout runs continuously without recruiter intervention.
 
-### 9. Resume Studio (Multi-Resume Library)
+When a candidate's skill scores are updated (after any interview session or profile sync), a BullMQ job fires automatically on the `autonomous-sourcing` queue. The worker:
 
-Candidates can generate unlimited tailored resumes from a single page. The flow:
+1. Fetches the updated candidate's profile.
+2. Finds all active RoleSpecs that have `autoSourceEnabled: true` and whose must-have skills overlap with the updated skills.
+3. Skips roles already handshaked with this candidate.
+4. Runs the full Handshake Protocol for each new (role, candidate) pair.
+5. If `mutualFit = true`: creates the Handshake doc and sends the recruiter an email notification.
+6. Capped at 20 roles per job run to avoid Groq rate limits. Concurrency: 3 workers.
 
-1. **Enter a job title** (e.g. "Senior Backend Engineer", "SDE-2 at Stripe") — optionally paste the full JD for even tighter tailoring.
-2. **Generate** — the AI reads the candidate's verified Intervue skill scores, GitHub projects (with tech stacks and descriptions), work experience, education, and bio, then produces a complete ATS-optimized resume in ~5 seconds.
-3. **Auto-saved** — every generated resume is saved to the candidate's library with the job title as the name.
-4. **Library panel** — all saved resumes appear in the left panel with timestamps. Click any to load it back into the preview. Delete versions you no longer need.
-5. **Copy ATS text** — one click copies a clean plain-text version ready to paste into any ATS. PDF export is in roadmap.
+---
 
-The resume generator only uses information from the candidate's actual verified profile — it cannot hallucinate work history or skills that aren't there.
+### 16. Referral System
 
-### 10. Infrastructure
+Every candidate has a unique 8-character referral code. The code is generated idempotently on first GitHub OAuth.
 
-- **Next.js 16 App Router** — server components, streaming, edge routes.
-- **MongoDB Atlas + Mongoose** — main data store. Models: User, Profile, InterviewSession, Application, RoleSpec, Handshake, BadgeEvent.
-- **Auth**: NextAuth v5 beta with two providers: GitHub OAuth (candidates) + Credentials/bcryptjs (recruiters). Edge-safe split config for middleware.
-- **AI provider**: Ollama locally (llama3.2, no API cost in dev) with automatic Groq fallback (`llama-3.3-70b-versatile`) when Ollama is unreachable. All AI routes use `getModel()` — switching providers is one env var.
-- **BullMQ + ioredis**: background worker process for slow jobs (LinkedIn scraping, large sourcing runs). Graceful degradation — the app runs fully without Redis; jobs just run inline.
-- **Python microservice** (`python-parser/`): FastAPI service with a `joeyism/linkedin_scraper` + Playwright integration for LinkedIn parsing. Separate process; Node calls it via HTTP.
-- **Judge0**: code execution in interviews (self-hosted or cloud endpoint).
-- **Resend**: transactional email. Currently sends: new message notifications, interview schedule confirmations, password reset links, score-change alerts (Pro).
-- **Stripe v22**: subscription billing. Webhook-driven state machine for subscription lifecycle.
-- **BadgeEvent model** with 90-day TTL index: badge serves, proof page visits, and signup referrers are logged for funnel analytics without permanent storage.
+Sharing the link (`/onboarding?ref=CODE`) stores the code in localStorage. After OAuth, the code is claimed via `POST /api/referral`.
+
+Referral dashboard at `/settings/referrals`: referral link with copy button, stats grid (total referred / completed), progress bars per referral, and vouched status card.
+
+**Milestone:** when a referred candidate completes their 3rd interview session, the referrer's `vouchedCount` increments. At `vouchedCount ≥ 3` the referrer receives the Vouched badge.
+
+---
+
+### 17. Skill Milestone Certificates
+
+When a candidate's proof score crosses a milestone threshold (50 → Intermediate, 70 → Proficient, 85 → Expert), a certificate is automatically issued:
+
+- Stored in the Certificate model with a unique 32-character token.
+- Public page at `/certificate/[token]` with skill name, milestone label, score at issuance, supporting evidence, and issue date.
+- LinkedIn share button + copy link button.
+- 1200×630 edge-rendered OG image at `/api/certificate/[token]` — certificate-style design, color-coded by milestone level.
+- Candidate receives a Resend email notification immediately on issuance.
+- Candidate also receives an **in-app notification** (`certificate_issued`) via the notification centre.
+- One certificate per (user, skill, milestone) — duplicates are silently skipped.
+
+---
+
+### 18. Recruiter Product
+
+**Auth:** separate email + password (bcryptjs) — GitHub OAuth is for candidates only.
+
+**Onboarding:** captures company name, size, and initial roles.
+
+**Dashboard:** pipeline stats, top matches, recent activity, natural language search.
+
+**Roles page:** create, view, and manage open roles. Each role shows all Handshake results with verdict chips and the full agent dialogue.
+
+**Role fit forecast:** before sourcing, recruiters can click "Check pool →" to get a live forecast: total verified candidates, how many pass all gates, per-skill gate analysis, breakdown by location, identified bottleneck skill.
+
+**Blind screening mode:** candidate names, usernames, avatars, and GitHub handles replaced with deterministic anonymous labels. Recruiter evaluates proof scores before identity is revealed. Reveal endpoint rate-limited, logged to BadgeEvent, and triggers `recruiter_viewed` in-app notification to the candidate (once per 24h).
+
+**Talent pool watchlist:** recruiters can add candidates to a watchlist per role with per-skill score alerts and status change alerts.
+
+**Interview question generator:** identifies gap skills and strength skills, produces three sets of questions: probing gap questions, verification questions for strengths, behavioral questions. Generated by Groq, specific to the (candidate, role) pair.
+
+**Hiring velocity dashboard** at `/recruiter/analytics`:
+- KPI cards: surfaced, applied, interviewed, offered (last 12 weeks).
+- Average time-to-offer in days.
+- Recharts line chart: weekly surfaced vs. applied pipeline.
+- Horizontal bar chart: top 10 skill gaps.
+- Day × hour activity heatmap.
+
+**Candidate search:** filter by skill name, minimum proof score, target role, location, vouchedOnly. Returns profiles ranked by cohort percentile.
+
+**Kanban pipeline:** Applications move between New Inquiry → Screening → Interview → Offer → Closed.
+
+**ATS API:** `GET /api/ats/candidates/search` authenticated by `x-api-key`.
+
+**Email notifications** via Resend: new messages, scheduled interviews, watchlist alerts, autonomous sourcing matches.
+
+**Interview scheduling** with `.ics` calendar file generation.
+
+---
+
+### 19. Leaderboard Notifications
+
+Every Monday at 09:00 UTC, the cron at `/api/cron/leaderboard-notify` checks:
+
+- **Global skill leaderboards** — top 20 for each of 9 tracked skills (Go, TypeScript, Python, Rust, React, Node.js, Kubernetes, Java, System Design).
+- **Skill × city leaderboards** — top 10 per skill × city combo across 6 cities (Bengaluru, Mumbai, Delhi, Hyderabad, Chennai, Pune).
+
+For each candidate appearing in a board for the first time that week: Resend email + in-app notification. Deduplication via `LeaderboardAlert` (unique on userId + skill + city + weekOf).
+
+---
+
+### 20. Leaderboard
+
+Public leaderboard at `/leaderboard` — no login required.
+
+Two filter axes: **Skill** and **City**. URL: `/leaderboard?skill=Go&city=Bangalore` — fully shareable, search-engine indexed. `generateMetadata` produces skill+city-specific titles for every combination.
+
+Top 3 as a podium with gold/silver/bronze styling. Remaining rows in a table: rank icon, avatar, name + vouched badge, location, score in monospace, cohort percentile badge.
+
+---
+
+### 21. Atlas Market Intelligence Feed (Daily Cron)
+
+A daily cron at 02:00 UTC aggregates skill demand across the platform: active role counts per skill, verified candidates, average proof scores, demand score (0–100), week-over-week delta. Stores results in the MarketFeed collection with 48-hour TTL.
+
+Visible to candidates on the Atlas agent page as a horizontal scroll strip of skill cards.
+
+---
+
+### 22. Weekly Brief Cron
+
+Every Monday at 08:00 UTC, the cron at `/api/cron/weekly-brief` batches up to 50 candidates with `emailBriefEnabled: true`, generates a personalized 3-paragraph brief via Groq, and sends it via Resend. Deduplication via the WeeklyBrief model (unique on userId + weekOf).
+
+---
+
+### 23. Open Proof API v1
+
+Public read-only endpoint at `/api/v1/proof/:username/:skill`. No API key required.
+
+Returns: `proofScore`, `label`, `color` (hex), `evidence[]` (top 5 citations), `scoreHistory[]` (last 10 entries), `lastUpdated`, `proofUrl`.
+
+Rate limited to 100 requests per IP per hour via Upstash Redis sliding-window sorted set. Returns `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `Retry-After` headers. CORS: `*`. Invisible candidates return 404.
+
+Documentation page at `/docs`.
+
+---
+
+### 24. Resume Studio
+
+Candidates generate tailored resumes from a single page:
+
+1. Enter job title + optional JD paste.
+2. AI reads verified skill scores, GitHub projects, work experience, education, and bio → produces ATS-optimized resume in ~5 seconds.
+3. Auto-saved to library with timestamp.
+4. Copy ATS plain text (one click).
+5. **Download PDF** (one click) — formatted A4 PDF generated client-side from `@react-pdf/renderer`. Lazy-loaded so it doesn't add to initial bundle.
+6. Library panel: all saved resumes with delete.
+
+Generator only uses verified profile data — cannot hallucinate skills.
+
+---
+
+### 25. Settings — Password Change
+
+Credential-auth candidates (email+password) can change their password from Settings → Privacy → Password section. Requires current password verification via bcrypt before accepting the new one. GitHub OAuth candidates see an informational message instead. Implemented at `POST /api/auth/change-password`.
+
+---
+
+## Data Models
+
+| Model | Purpose |
+|---|---|
+| User | Auth, preferences, discoverability, streak, subscription, referral fields |
+| Profile | parsedSkills with proofScore + scoreHistory, projects, cohortPercentile, vouchedBadge, `onboardingComplete`, `onboardingStep` |
+| InterviewSession | format, scores, insightReport (strengths/gaps/idealAnswers/aiVerdict/`weaknessSignals[]`), scoreUpdate, share token, `memoryContext`, `companyMode` |
+| PeerSession | Two-participant mock interview: skill, format, status, participants with roles, messages with sender role, AI summary, interviewer score |
+| Team | name, ownerId, inviteCode (8-char nanoid), members[] with skill snapshots (up to 8 skills each), max 20 members |
+| Application | messages, interview, outcome, pipeline status |
+| RoleSpec | mustHave/niceHave skill bars, comp, locations, stage, blind/autoSource flags |
+| Handshake | verdict with skillMatches + evidence snapshots, agent exchanges |
+| Watchlist | skillAlerts with thresholds, recruiterId + candidateId |
+| Certificate | skill, milestone, scoreAtIssuance, evidence, token (32-char), issuedAt |
+| WeeklyBrief | userId, weekOf (unique), subject, bodyHtml, sentAt |
+| MarketFeed | skill, demandScore, demandDelta, activeRoles, candidateCount — TTL 48h |
+| BadgeEvent | serve/visit/signup events — 90-day TTL auto-expiry |
+| SavedResume | userId, jobTitle, content (name/headline/skills/experience/projects/education), timestamps |
+| LeaderboardAlert | userId, skill, city, rank, weekOf — deduplicates leaderboard notification emails |
+| Notification | userId, type, title, body, link, read — in-app notification centre; TTL 90 days |
+
+---
+
+## Infrastructure
+
+| Layer | Technology |
+|---|---|
+| Frontend | Next.js 16 App Router, React 19, Tailwind v4, Framer Motion, Recharts |
+| Database | MongoDB Atlas, Mongoose |
+| Auth | NextAuth v5, GitHub OAuth (candidates) + bcryptjs Credentials (recruiters + credential candidates) |
+| AI | Vercel AI SDK v6, Ollama (dev) / Groq llama-3.3-70b-versatile (prod) |
+| Code Execution | Judge0 |
+| Background Jobs | BullMQ + ioredis, queues: connection-sync / role-sourcing / autonomous-sourcing |
+| Email | Resend |
+| Billing | Stripe v22 |
+| LinkedIn Parsing | Python/FastAPI + Playwright + linkedin_scraper (separate process) |
+| GitLab Parsing | Public GitLab REST API v4 + Groq analysis (no OAuth required); surfaced in Settings → Connections |
+| Twitter/X Parsing | Twitter API v2 bearer token + Groq analysis (scaffolded; activate with `TWITTER_BEARER_TOKEN`) |
+| Typesense | Scaffolded full-text search client (`lib/typesense.ts`); recruiter search falls back to MongoDB if not configured |
+| Video Interviews | LiveKit scaffolded (`/api/interview/room`); activate with `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` |
+| Crons | Vercel Crons — weekly brief (Mon 08:00 UTC), leaderboard notify (Mon 09:00 UTC), market feed (daily 02:00 UTC) |
+| Rate Limiting | Upstash Redis REST API (sliding window sorted set) |
+| Edge Routes | ImageResponse (badges + certificate OG + rank card + receipt + wrapped OG), embed route (raw HTML) |
+| Deployment | Vercel (Next.js + edge), separate process for BullMQ worker and Python parser |
+| Memory Engine | `lib/memory.ts` — cross-session weakness signal extraction + aggregation; injected into every interview session |
 
 ---
 
 ## What Is Not Done Yet
 
-Telling you what isn't built is as important as what is.
-
-- **Resume PDF export** is not yet implemented — candidates can copy ATS plain text but not download a formatted PDF.
-- **No mobile app.** Web only.
-- **Twitter/X and GitLab** source parsers are scaffolded but blocked on OAuth app credentials — not implemented.
-- **Typesense** full-text search is in the plan but deferred; current search is MongoDB regex.
-- **LiveKit / video interviews** are in the plan but not started.
-- **BullMQ sourcing is capped at ~12 candidates per run** synchronously. At scale this needs the worker process running with Redis — the infrastructure is built but not deployed to production yet.
-- **Score confidence bands** (showing uncertainty alongside a proof score) are not implemented — scores are presented as point estimates.
-- **cohortPercentile** recalculates on profile generation but not after every session — leaderboard ranking can lag by one sync cycle.
-- **No recruiter analytics dashboard** beyond the basic stats strip.
+- **Mobile app** — web only.
+- **Twitter/X parser** — route scaffolded at `/api/profile/sync/twitter`; blocked on `TWITTER_BEARER_TOKEN` env var (requires elevated Twitter Developer access).
+- **Typesense full-text search** — scaffolded (`lib/typesense.ts`); recruiter search has fallback to MongoDB. Needs a running Typesense instance (`TYPESENSE_HOST`, `TYPESENSE_API_KEY`) and an initial index sync job to activate.
+- **LiveKit video interviews** — room token API scaffolded at `/api/interview/room`; no UI built. Needs `livekit-server-sdk` installed and env vars set.
+- **LinkedIn parser** requires a running Python microservice and a valid session cookie — not a zero-setup integration.
+- **Peer interview matchmaking latency** — the queue currently has no skill-level matching; two candidates of very different skill levels can be paired. A future version should weight by cohort percentile before matching.
+- **Company mode badge on proof receipt** — session stores `companyMode.company` but the receipt page (`/api/receipt/[sessionId]`) doesn't yet display the company name on the OG card or the full report page.
+- **Team skill graph staleness** — member skill snapshots are taken at join time; they don't auto-refresh when a member completes new sessions. A sync endpoint or periodic refresh job is needed.
 
 ---
 
-## Stack at a Glance
+## The Line We Drew
 
-| Layer | Technology |
-|---|---|
-| Frontend | Next.js 16, React 19, Tailwind v4, Framer Motion, Recharts |
-| Database | MongoDB Atlas, Mongoose |
-| Auth | NextAuth v5, GitHub OAuth + bcryptjs Credentials |
-| AI | Vercel AI SDK v6, Ollama (dev) / Groq llama-3.3-70b (prod fallback) |
-| Code Execution | Judge0 |
-| Background Jobs | BullMQ + ioredis (Upstash Redis) |
-| Email | Resend |
-| Billing | Stripe v22 |
-| LinkedIn Parsing | Python/FastAPI + Playwright + linkedin_scraper |
-| Deployment | Vercel (Next.js), separate process for worker and Python parser |
+The Handshake Protocol runs fully deterministic hard gates. The LLM cannot override them. A candidate without verified Kubernetes experience will not be surfaced to a role that requires it, regardless of what the model generates. The evidence snapshot captured at evaluation time is immutable — inflating a score after the fact does not rewrite what the agent claimed at match time.
 
----
-
-## The Number That Matters
-
-The Handshake Protocol runs fully deterministic hard gates. The LLM cannot override them. A candidate without verified Kubernetes experience will not be surfaced to a role that requires it, regardless of what the LLM generates. And the evidence snapshot captured at evaluation time means the audit trail is immutable — inflating a score after the fact doesn't rewrite what the agent claimed.
-
-That is the line we drew and the code enforces it.
+That is the trust layer the entire product is built on.

@@ -8,7 +8,9 @@ import {
   RefreshCw, Link as LinkIcon, CheckCircle2, AlertCircle, Layout,
   Plus, Trash2, GripVertical, ExternalLink, Image as ImageIcon, Video,
   X as XIcon, Palette, Copy, Check, Zap, RotateCcw, CreditCard, Sparkles, ArrowRight,
+  Code2,
 } from 'lucide-react'
+import { ReadmeSnippetGenerator } from '@/components/profile/ReadmeSnippetGenerator'
 import { GithubIcon, LinkedinIcon } from '@/components/portfolio/SocialIcons'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -405,6 +407,9 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [generatingProfile, setGeneratingProfile] = useState(false)
+  const [gitlabHandle, setGitlabHandle] = useState('')
+  const [gitlabStatus, setGitlabStatus] = useState<'idle' | 'syncing' | 'ok' | 'error'>('idle')
+  const [gitlabMsg, setGitlabMsg] = useState('')
   const [linkedinUrl, setLinkedinUrl] = useState('')
   const [linkedinStatus, setLinkedinStatus] = useState<'idle' | 'syncing' | 'ok' | 'error'>('idle')
   const [linkedinMsg, setLinkedinMsg] = useState('')
@@ -421,6 +426,11 @@ export default function SettingsPage() {
   const [billingPeriodEnd, setBillingPeriodEnd] = useState<string | null>(null)
   const [checkingOut, setCheckingOut] = useState(false)
   const [openingPortal, setOpeningPortal] = useState(false)
+  const [pwCurrent, setPwCurrent] = useState('')
+  const [pwNew, setPwNew] = useState('')
+  const [pwConfirm, setPwConfirm] = useState('')
+  const [pwChanging, setPwChanging] = useState(false)
+  const [authProvider, setAuthProvider] = useState<'github' | 'credentials'>('github')
 
   useEffect(() => {
     async function load() {
@@ -440,7 +450,10 @@ export default function SettingsPage() {
           if (profile?.portfolioCustomization) setCustomization(c => ({ ...c, ...profile.portfolioCustomization }))
           const li = (user?.connections || []).find((c: { source: string }) => c.source === 'linkedin')
           if (li?.handle) { setLinkedinUrl(li.handle); setLinkedinStatus('ok'); setLinkedinMsg(li.summary || 'Previously synced') }
+          const gl = (user?.connections || []).find((c: { source: string }) => c.source === 'gitlab')
+          if (gl?.handle) { setGitlabHandle(gl.handle); setGitlabStatus('ok'); setGitlabMsg(gl.summary || 'Previously synced') }
           if (user?.lastSyncAt) setLastSyncAt(user.lastSyncAt)
+          if (user?.authProvider) setAuthProvider(user.authProvider)
         }
         // Load sync token separately — only fetched when on connections tab
         const tokenRes = await fetch('/api/me/sync-token')
@@ -525,8 +538,12 @@ export default function SettingsPage() {
         setLinkedinStatus('error')
         setLinkedinMsg('Requires Intervue Pro')
         toast.error('LinkedIn sync requires Pro — upgrade in the Billing tab')
-        return
+      } else {
+        setLinkedinStatus('error')
+        setLinkedinMsg(meData.error || 'Failed to save LinkedIn URL')
+        toast.error(meData.error || 'Failed to save LinkedIn URL')
       }
+      return
     }
     try {
       const res = await fetch('/api/profile/sync/linkedin', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ profileUrl: linkedinUrl }) })
@@ -534,6 +551,49 @@ export default function SettingsPage() {
       if (res.ok) { setLinkedinStatus('ok'); setLinkedinMsg(`Synced — ${data.skillsAdded} skills added`); toast.success('LinkedIn synced!') }
       else { setLinkedinStatus('error'); setLinkedinMsg(data.error || 'Sync failed'); toast.error(data.error || 'Sync failed') }
     } catch { setLinkedinStatus('error'); setLinkedinMsg('Network error') }
+  }
+
+  async function handleGitLabSync() {
+    if (!gitlabHandle.trim()) { toast.error('Enter a GitLab username'); return }
+    setGitlabStatus('syncing')
+    try {
+      const res = await fetch('/api/profile/sync/gitlab', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gitlabUsername: gitlabHandle.trim().replace(/^@/, '') }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setGitlabStatus('ok')
+        setGitlabMsg(`Synced — ${data.skillsAdded} skills added`)
+        toast.success('GitLab synced!')
+      } else {
+        setGitlabStatus('error')
+        setGitlabMsg(data.error || 'Sync failed')
+        toast.error(data.error || 'GitLab sync failed')
+      }
+    } catch { setGitlabStatus('error'); setGitlabMsg('Network error') }
+  }
+
+  async function handleChangePassword() {
+    if (pwNew !== pwConfirm) { toast.error('New passwords do not match'); return }
+    if (pwNew.length < 8) { toast.error('Password must be at least 8 characters'); return }
+    setPwChanging(true)
+    try {
+      const res = await fetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentPassword: pwCurrent, newPassword: pwNew }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        toast.success('Password updated')
+        setPwCurrent(''); setPwNew(''); setPwConfirm('')
+      } else {
+        toast.error(data.error || 'Failed to change password')
+      }
+    } catch { toast.error('Failed to change password') }
+    finally { setPwChanging(false) }
   }
 
   async function handleRegenerateProfile() {
@@ -877,6 +937,36 @@ export default function SettingsPage() {
                       </div>
                     </Section>
 
+                    <Section title="GitLab" desc="Public repos analysed via GitLab REST API — no OAuth required.">
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-3 mb-1">
+                          <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-white text-[11px] font-mono font-bold" style={{ background: '#E24329' }}>GL</div>
+                          <div className="text-sm font-medium">GitLab username</div>
+                          {gitlabStatus === 'ok' && <span className="ml-auto text-[10px] px-2 py-0.5 rounded bg-[#2DE2C5]/10 text-[#2DE2C5] font-semibold">Connected</span>}
+                        </div>
+                        <div className="flex gap-2">
+                          <Input
+                            value={gitlabHandle}
+                            onChange={e => { setGitlabHandle(e.target.value); setGitlabStatus('idle') }}
+                            placeholder="your-gitlab-username"
+                            onKeyDown={e => e.key === 'Enter' && handleGitLabSync()}
+                            className="flex-1 bg-foreground/[0.03] border-foreground/[0.08] text-foreground placeholder:text-foreground/20 text-sm"
+                          />
+                          <Button onClick={handleGitLabSync} disabled={gitlabStatus === 'syncing' || !gitlabHandle.trim()}
+                            className="btn-supernova font-semibold shrink-0">
+                            {gitlabStatus === 'syncing' ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : <RefreshCw className="w-4 h-4 mr-1.5" />}
+                            {gitlabStatus === 'syncing' ? 'Syncing…' : 'Sync'}
+                          </Button>
+                        </div>
+                        {gitlabStatus !== 'idle' && gitlabMsg && (
+                          <div className={`flex items-center gap-2 text-xs ${gitlabStatus === 'ok' ? 'text-[#2DE2C5]' : 'text-[#FB7185]'}`}>
+                            {gitlabStatus === 'ok' ? <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> : <AlertCircle className="w-3.5 h-3.5 shrink-0" />}
+                            {gitlabMsg}
+                          </div>
+                        )}
+                      </div>
+                    </Section>
+
                     <Section title="GitHub" desc="Your primary GitHub account, synced at sign-in.">
                       <div className="flex items-center gap-3 p-4 rounded-xl bg-foreground/[0.03] border border-foreground/[0.06]">
                         <div className="w-8 h-8 rounded-lg bg-[#2DE2C5]/10 flex items-center justify-center shrink-0">
@@ -966,11 +1056,19 @@ jobs:
                         </div>
                       </div>
                     </Section>
+
+                    <Section title="README badge" desc="Drop your top-3 proof scores into any GitHub README — one line of Markdown.">
+                      <ReadmeSnippetGenerator
+                        username={settings.username || settings.githubUsername}
+                        origin={typeof window !== 'undefined' ? window.location.origin : 'https://intervue.in'}
+                      />
+                    </Section>
                   </>
                 )}
 
                 {/* ── Privacy ── */}
                 {activeTab === 'privacy' && (
+                  <>
                   <Section title="Visibility" desc="Control what's visible on your public profile.">
                     <div className="space-y-2">
                       {[
@@ -989,6 +1087,55 @@ jobs:
                       ))}
                     </div>
                   </Section>
+                  <Section title="Password" desc="Change your account password.">
+                    {authProvider === 'github' ? (
+                      <div className="px-4 py-3.5 rounded-xl bg-foreground/[0.03] border border-foreground/[0.05] text-sm text-foreground/50">
+                        Your account uses GitHub login — no password is set.
+                      </div>
+                    ) : (
+                      <div className="space-y-3 max-w-sm">
+                        <div>
+                          <Label className="text-xs text-foreground/50 mb-1 block">Current password</Label>
+                          <Input
+                            type="password"
+                            value={pwCurrent}
+                            onChange={e => setPwCurrent(e.target.value)}
+                            placeholder="••••••••"
+                            className="bg-transparent border-foreground/[0.08] text-foreground placeholder:text-foreground/20 text-sm"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs text-foreground/50 mb-1 block">New password</Label>
+                          <Input
+                            type="password"
+                            value={pwNew}
+                            onChange={e => setPwNew(e.target.value)}
+                            placeholder="Min. 8 characters"
+                            className="bg-transparent border-foreground/[0.08] text-foreground placeholder:text-foreground/20 text-sm"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs text-foreground/50 mb-1 block">Confirm new password</Label>
+                          <Input
+                            type="password"
+                            value={pwConfirm}
+                            onChange={e => setPwConfirm(e.target.value)}
+                            placeholder="••••••••"
+                            className="bg-transparent border-foreground/[0.08] text-foreground placeholder:text-foreground/20 text-sm"
+                          />
+                        </div>
+                        <Button
+                          onClick={handleChangePassword}
+                          disabled={pwChanging || !pwCurrent || !pwNew || !pwConfirm}
+                          size="sm"
+                          className="bg-[#2DE2C5] text-[#04050e] hover:bg-[#2DE2C5]/90 font-semibold"
+                        >
+                          {pwChanging ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Changing…</> : 'Change password'}
+                        </Button>
+                      </div>
+                    )}
+                  </Section>
+                  </>
                 )}
 
                 {/* ── Notifications ── */}

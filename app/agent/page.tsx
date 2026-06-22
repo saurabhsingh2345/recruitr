@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Code2, Sparkles, ArrowLeft, Loader2, Check, X, ShieldCheck,
   SlidersHorizontal, MapPin, Zap, Building2, EyeOff, Eye, MessageSquare,
-  ArrowRight, Send, ChevronDown, ChevronUp, TrendingUp,
+  Send, ChevronDown, ChevronUp, TrendingUp,
 } from 'lucide-react'
 import { LineChart, Line, ResponsiveContainer } from 'recharts'
 import { Button } from '@/components/ui/button'
@@ -14,6 +14,11 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 import { getScoreColor } from '@/lib/scoring'
+import { SkillUnlockPath } from '@/components/atlas/SkillUnlockPath'
+import { MarketFeed } from '@/components/atlas/MarketFeed'
+import { LearningPath } from '@/components/atlas/LearningPath'
+import { MemoryInsights } from '@/components/atlas/MemoryInsights'
+import { NegotiationCoach } from '@/components/messages/NegotiationCoach'
 
 /* ── Types ──────────────────────────────────────────────────── */
 
@@ -38,9 +43,11 @@ interface Prefs {
   minCompLpa: number; locations: string[]; stages: string[]; dealbreakers: string[]
 }
 
+type RightTab = 'skills' | 'market' | 'learning' | 'negotiate'
+
 /* ── Sub-components ──────────────────────────────────────────── */
 
-function ScoreRingMini({ score, size = 56 }: { score: number; size?: number }) {
+function ScoreRingMini({ score, size = 52 }: { score: number; size?: number }) {
   const r = size * 0.38
   const circ = 2 * Math.PI * r
   const color = getScoreColor(score)
@@ -62,7 +69,7 @@ function Sparkline({ history }: { history?: SkillHistory[] }) {
   if (!history || history.length < 2) return null
   const data = history.slice(-8).map((h) => ({ v: h.score }))
   return (
-    <ResponsiveContainer width={48} height={20}>
+    <ResponsiveContainer width={44} height={18}>
       <LineChart data={data}>
         <Line type="monotone" dataKey="v" stroke="#2DE2C5" strokeWidth={1.5} dot={false} isAnimationActive={false} />
       </LineChart>
@@ -92,9 +99,7 @@ function SkillCheckRow({ match, delay }: { match: SkillMatch; delay: number }) {
         <Loader2 className="w-3.5 h-3.5 shrink-0 text-[#AEB5E0] animate-spin" />
       )}
       <span className="text-[#AEB5E0]">{match.skill}</span>
-      <span className="text-[#666] ml-auto font-mono">
-        {match.candidateScore ?? '?'} / {match.required}
-      </span>
+      <span className="text-[#666] ml-auto font-mono">{match.candidateScore ?? '?'} / {match.required}</span>
       {visible && (
         <span className="font-semibold" style={{ color }}>
           {match.cleared ? 'Cleared' : 'Below bar'}
@@ -113,6 +118,13 @@ const DISCOVER: { v: 'open' | 'passive' | 'invisible'; label: string; desc: stri
   { v: 'invisible', label: 'Invisible', desc: 'Not discoverable — Atlas never engages', icon: EyeOff },
 ]
 
+const RIGHT_TABS: { id: RightTab; label: string }[] = [
+  { id: 'skills', label: 'Skill path' },
+  { id: 'market', label: 'Market' },
+  { id: 'learning', label: 'Learning' },
+  { id: 'negotiate', label: 'Negotiate' },
+]
+
 /* ── Main Page ───────────────────────────────────────────────── */
 
 export default function AgentPage() {
@@ -129,6 +141,8 @@ export default function AgentPage() {
   const [dbInput, setDbInput] = useState('')
   const [showHandshakes, setShowHandshakes] = useState(true)
   const [expandedHs, setExpandedHs] = useState<string | null>(null)
+  const [learningSkill, setLearningSkill] = useState<string | null>(null)
+  const [rightTab, setRightTab] = useState<RightTab>('skills')
 
   // Chat state
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
@@ -158,7 +172,6 @@ export default function AgentPage() {
     if (ctxRes.ok) {
       const ctx = await ctxRes.json()
       setAtlasCtx(ctx)
-      // Seed chat with proactive insight
       if (ctx?.proactiveInsight) {
         const { skill, score, daysIdle, reason } = ctx.proactiveInsight
         let msg = ''
@@ -169,7 +182,7 @@ export default function AgentPage() {
         }
         setChatMessages([{ role: 'atlas', content: msg }])
       } else if (ctx?.pendingHandshakes > 0) {
-        setChatMessages([{ role: 'atlas', content: `You have **${ctx.pendingHandshakes}** opportunity${ctx.pendingHandshakes > 1 ? 'ies' : 'y'} waiting for your review below. Want me to summarize any of them?` }])
+        setChatMessages([{ role: 'atlas', content: `You have **${ctx.pendingHandshakes}** opportunit${ctx.pendingHandshakes > 1 ? 'ies' : 'y'} waiting for your review. Want me to summarize any of them?` }])
       } else {
         setChatMessages([{ role: 'atlas', content: 'Your profile looks solid. What can I help you with — improving a skill score, understanding a match, or something else?' }])
       }
@@ -243,112 +256,43 @@ export default function AgentPage() {
 
   const pending = handshakes.filter((h) => h.status === 'surfaced_to_candidate')
   const resolved = handshakes.filter((h) => h.status !== 'surfaced_to_candidate')
-  const topSkills = skills.slice(0, 3)
 
   return (
     <div className="h-screen flex overflow-hidden bg-[#05060F] text-white">
 
-      {/* ── Left Panel ───────────────────────────────────────── */}
-      <aside className="w-64 shrink-0 border-r border-white/[0.05] flex flex-col bg-[#080A18] hidden lg:flex">
-        {/* Brand */}
-        <div className="px-5 py-4 border-b border-white/[0.05] flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-[#2DE2C5] flex items-center justify-center shadow-[0_0_10px_rgba(45,226,197,0.35)]">
-              <Code2 className="w-4 h-4 text-[#05060F]" />
-            </div>
-            <span className="font-bold text-sm">intervue</span>
-          </div>
-          <Badge className="bg-[#2DE2C5]/10 text-[#2DE2C5] border-[#2DE2C5]/20 text-[10px]">Atlas</Badge>
-        </div>
+      {/* ── LEFT PANEL — Chat (full on mobile, 42% on desktop) ── */}
+      <div className="flex-1 lg:flex-none lg:w-[42%] flex flex-col border-r border-white/[0.05]">
 
-        {/* Discoverability */}
-        <div className="px-5 py-3 border-b border-white/[0.04]">
-          <div className="flex items-center gap-2">
-            <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${discoverability === 'open' ? 'bg-[#2DE2C5] animate-pulse' : discoverability === 'passive' ? 'bg-[#f59e0b]' : 'bg-[#888FC0]'}`} />
-            <span className="text-xs text-[#AEB5E0] capitalize">{discoverability}</span>
-            <button onClick={() => setShowPrefs(true)} className="ml-auto text-[10px] text-[#2DE2C5] hover:text-[#5BF0D8]">Change</button>
-          </div>
-        </div>
-
-        {/* Skill rings */}
-        <div className="px-5 py-4 flex-1 overflow-y-auto">
-          <div className="text-[10px] text-[#888FC0] uppercase tracking-widest font-semibold mb-3">Top skills</div>
-          {loading ? (
-            <div className="space-y-3">
-              {[1, 2, 3].map((i) => <Skeleton key={i} className="h-14 rounded-lg bg-white/[0.03]" />)}
-            </div>
-          ) : topSkills.length === 0 ? (
-            <p className="text-xs text-[#888FC0]">No skills yet — complete an interview session.</p>
-          ) : (
-            <div className="space-y-2">
-              {topSkills.map((skill) => {
-                const color = getScoreColor(skill.proofScore)
-                return (
-                  <div key={skill.name} className="flex items-center gap-3 p-2.5 rounded-xl bg-white/[0.03] border border-white/[0.04] hover:border-white/[0.08] transition-colors">
-                    <div className="relative shrink-0">
-                      <ScoreRingMini score={skill.proofScore} size={44} />
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <span className="text-[11px] font-bold font-mono" style={{ color }}>{skill.proofScore}</span>
-                      </div>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-xs font-medium truncate">{skill.name}</div>
-                      {skill.scoreHistory && skill.scoreHistory.length >= 2 && (
-                        <Sparkline history={skill.scoreHistory} />
-                      )}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-
-          {/* Handshake count badge */}
-          {pending.length > 0 && (
-            <div className="mt-4 p-3 rounded-xl border border-[#2DE2C5]/20 bg-[#2DE2C5]/[0.05]">
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-3.5 h-3.5 text-[#2DE2C5]" />
-                <span className="text-xs font-medium text-[#2DE2C5]">
-                  {pending.length} opportunit{pending.length > 1 ? 'ies' : 'y'} pending
-                </span>
+        {/* Header */}
+        <div className="shrink-0 h-14 px-5 border-b border-white/[0.05] flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Link href="/dashboard" className="flex items-center gap-1.5 text-[#AEB5E0] hover:text-white transition-colors">
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span className="text-xs hidden sm:inline">Dashboard</span>
+            </Link>
+            <div className="w-px h-4 bg-white/10 hidden sm:block" />
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 rounded-lg bg-[#2DE2C5] flex items-center justify-center shadow-[0_0_10px_rgba(45,226,197,0.3)]">
+                <Code2 className="w-3.5 h-3.5 text-[#05060F]" />
               </div>
-              <p className="text-[10px] text-[#888FC0] mt-1">Scroll down to review</p>
+              <span className="text-sm font-semibold">Atlas</span>
             </div>
-          )}
-        </div>
-
-        {/* Footer links */}
-        <div className="px-5 py-4 border-t border-white/[0.05] space-y-1">
-          <Link href="/dashboard" className="flex items-center gap-2 text-xs text-[#AEB5E0] hover:text-white py-1.5 transition-colors">
-            <ArrowLeft className="w-3.5 h-3.5" /> Dashboard
-          </Link>
-          <button onClick={() => setShowPrefs(true)} className="flex items-center gap-2 text-xs text-[#AEB5E0] hover:text-white py-1.5 transition-colors w-full">
-            <SlidersHorizontal className="w-3.5 h-3.5" /> Preferences
-          </button>
-        </div>
-      </aside>
-
-      {/* ── Main Content ─────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-
-        {/* Top bar (mobile) */}
-        <div className="lg:hidden border-b border-white/[0.05] px-4 h-14 flex items-center justify-between">
-          <Link href="/dashboard" className="flex items-center gap-2 text-sm text-[#AEB5E0]">
-            <ArrowLeft className="w-4 h-4" /> Back
-          </Link>
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-[#2DE2C5] flex items-center justify-center">
-              <Code2 className="w-4 h-4 text-[#05060F]" />
-            </div>
-            <Badge className="bg-[#2DE2C5]/10 text-[#2DE2C5] border-[#2DE2C5]/20 text-[10px]">Atlas</Badge>
           </div>
-          <button onClick={() => setShowPrefs(true)}>
-            <SlidersHorizontal className="w-4 h-4 text-[#AEB5E0]" />
-          </button>
+
+          <div className="flex items-center gap-3">
+            {/* Discoverability pill */}
+            <div className="flex items-center gap-1.5">
+              <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${discoverability === 'open' ? 'bg-[#2DE2C5] animate-pulse' : discoverability === 'passive' ? 'bg-[#f59e0b]' : 'bg-[#555]'}`} />
+              <span className="text-[11px] text-[#AEB5E0] capitalize hidden sm:inline">{discoverability}</span>
+            </div>
+            <button onClick={() => setShowPrefs(true)} className="p-1.5 rounded-lg hover:bg-white/[0.05] transition-colors text-[#AEB5E0] hover:text-white">
+              <SlidersHorizontal className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
-        {/* Chat Area */}
-        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-3 max-w-2xl w-full mx-auto">
+        {/* Chat messages */}
+        <div className="flex-1 overflow-y-auto px-4 sm:px-5 py-4 space-y-3">
           <AnimatePresence initial={false}>
             {chatMessages.map((msg, i) => (
               <motion.div
@@ -362,7 +306,7 @@ export default function AgentPage() {
                     <Sparkles className="w-3.5 h-3.5 text-[#05060F]" />
                   </div>
                 )}
-                <div className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
+                <div className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
                   msg.role === 'user'
                     ? 'bg-[#2DE2C5]/15 text-white border border-[#2DE2C5]/20 rounded-tr-sm'
                     : 'bg-[#0D1020] border border-white/[0.06] rounded-tl-sm'
@@ -395,7 +339,7 @@ export default function AgentPage() {
         </div>
 
         {/* Chat input */}
-        <div className="border-t border-white/[0.05] px-4 py-3 max-w-2xl w-full mx-auto">
+        <div className="shrink-0 border-t border-white/[0.05] px-4 py-3">
           <form onSubmit={sendChat} className="flex items-center gap-2">
             <input
               ref={inputRef}
@@ -415,11 +359,11 @@ export default function AgentPage() {
           </form>
         </div>
 
-        {/* Opportunities section */}
-        <div className="border-t border-white/[0.05] bg-[#080A18] max-h-[45vh] overflow-y-auto">
+        {/* Opportunities section (collapsible) */}
+        <div className="shrink-0 border-t border-white/[0.05] bg-[#080A18] max-h-[42vh] overflow-y-auto">
           <button
             onClick={() => setShowHandshakes(!showHandshakes)}
-            className="w-full px-6 py-3 flex items-center justify-between hover:bg-white/[0.02] transition-colors"
+            className="w-full px-5 py-3 flex items-center justify-between hover:bg-white/[0.02] transition-colors"
           >
             <div className="flex items-center gap-2">
               <span className="text-xs font-semibold text-[#AEB5E0] uppercase tracking-wider">Opportunities</span>
@@ -435,10 +379,10 @@ export default function AgentPage() {
           {showHandshakes && (
             <div className="px-4 pb-4 space-y-3">
               {loading ? (
-                <div className="space-y-2">{[1, 2].map((i) => <Skeleton key={i} className="h-24 rounded-xl bg-white/[0.03]" />)}</div>
+                <div className="space-y-2">{[1, 2].map((i) => <Skeleton key={i} className="h-20 rounded-xl bg-white/[0.03]" />)}</div>
               ) : pending.length === 0 && resolved.length === 0 ? (
-                <div className="py-6 text-center">
-                  <ShieldCheck className="w-8 h-8 text-[#2DE2C5]/30 mx-auto mb-2" />
+                <div className="py-5 text-center">
+                  <ShieldCheck className="w-7 h-7 text-[#2DE2C5]/30 mx-auto mb-2" />
                   <p className="text-xs text-[#AEB5E0]">No opportunities yet — Atlas is watching for genuine matches.</p>
                 </div>
               ) : (
@@ -446,7 +390,7 @@ export default function AgentPage() {
                   {pending.map((h) => (
                     <motion.div key={h._id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="rounded-xl border border-white/[0.08] bg-[#0D1020] overflow-hidden">
                       <div
-                        className="p-4 cursor-pointer hover:bg-white/[0.02] transition-colors"
+                        className="p-3.5 cursor-pointer hover:bg-white/[0.02] transition-colors"
                         onClick={() => setExpandedHs(expandedHs === h._id ? null : h._id)}
                       >
                         <div className="flex items-start justify-between">
@@ -460,22 +404,21 @@ export default function AgentPage() {
                               ) : null}
                             </div>
                             {h.surfacingMessage && (
-                              <p className="text-xs text-[#AEB5E0] mt-1 italic line-clamp-1">{h.surfacingMessage}</p>
+                              <p className="text-xs text-[#AEB5E0] mt-0.5 italic line-clamp-1">{h.surfacingMessage}</p>
                             )}
                           </div>
-                          <div className="flex items-center gap-2 shrink-0 ml-3">
+                          <div className="flex items-center gap-2 shrink-0 ml-2">
                             {h.verdict && (
-                              <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-[#2DE2C5]/10 border border-[#2DE2C5]/20">
-                                <Sparkles className="w-3 h-3 text-[#2DE2C5]" />
+                              <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#2DE2C5]/10 border border-[#2DE2C5]/20">
+                                <Sparkles className="w-2.5 h-2.5 text-[#2DE2C5]" />
                                 <span className="text-xs font-mono text-[#2DE2C5]">{h.verdict.score}%</span>
                               </div>
                             )}
-                            {expandedHs === h._id ? <ChevronUp className="w-4 h-4 text-[#888FC0]" /> : <ChevronDown className="w-4 h-4 text-[#888FC0]" />}
+                            {expandedHs === h._id ? <ChevronUp className="w-3.5 h-3.5 text-[#888FC0]" /> : <ChevronDown className="w-3.5 h-3.5 text-[#888FC0]" />}
                           </div>
                         </div>
                       </div>
 
-                      {/* Expanded: skill checks + action buttons */}
                       <AnimatePresence>
                         {expandedHs === h._id && (
                           <motion.div
@@ -485,26 +428,21 @@ export default function AgentPage() {
                             transition={{ duration: 0.2 }}
                             className="overflow-hidden border-t border-white/[0.05]"
                           >
-                            <div className="p-4 space-y-3">
-                              {/* Atlas surfacing message */}
+                            <div className="p-3.5 space-y-3">
                               {h.surfacingMessage && (
-                                <div className="flex gap-2 p-3 rounded-xl bg-[#2DE2C5]/[0.04] border border-[#2DE2C5]/10">
-                                  <Sparkles className="w-3.5 h-3.5 text-[#2DE2C5] shrink-0 mt-0.5" />
+                                <div className="flex gap-2 p-2.5 rounded-lg bg-[#2DE2C5]/[0.04] border border-[#2DE2C5]/10">
+                                  <Sparkles className="w-3 h-3 text-[#2DE2C5] shrink-0 mt-0.5" />
                                   <p className="text-xs text-[#ECF0FF] leading-relaxed">{h.surfacingMessage}</p>
                                 </div>
                               )}
-
-                              {/* Skill checks */}
                               {h.verdict?.skillMatches && h.verdict.skillMatches.length > 0 && (
                                 <div className="space-y-1.5">
-                                  <div className="text-[10px] text-[#888FC0] uppercase tracking-widest font-semibold mb-2">Atlas checked</div>
+                                  <div className="text-[10px] text-[#888FC0] uppercase tracking-widest font-semibold mb-1">Atlas checked</div>
                                   {h.verdict.skillMatches.map((m, idx) => (
                                     <SkillCheckRow key={m.skill} match={m} delay={idx * 150} />
                                   ))}
                                 </div>
                               )}
-
-                              {/* Gate booleans (fallback when no skillMatches) */}
                               {(!h.verdict?.skillMatches || h.verdict.skillMatches.length === 0) && h.verdict && (
                                 <div className="grid grid-cols-2 gap-1.5">
                                   {[
@@ -514,31 +452,27 @@ export default function AgentPage() {
                                     { label: 'Stage', ok: h.verdict.stageMatch },
                                   ].map(({ label, ok }) => (
                                     <div key={label} className="flex items-center gap-1.5 text-xs">
-                                      {ok
-                                        ? <Check className="w-3 h-3 text-[#2DE2C5]" />
-                                        : <X className="w-3 h-3 text-[#f43f5e]" />}
+                                      {ok ? <Check className="w-3 h-3 text-[#2DE2C5]" /> : <X className="w-3 h-3 text-[#f43f5e]" />}
                                       <span className="text-[#AEB5E0]">{label}</span>
                                     </div>
                                   ))}
                                 </div>
                               )}
-
-                              {/* Actions */}
                               <div className="flex gap-2 pt-1">
                                 <Button
                                   onClick={() => respond(h._id, 'accept')}
                                   disabled={responding === h._id}
-                                  className="flex-1 bg-[#2DE2C5] text-[#05060F] hover:bg-[#1fb89e] font-semibold h-9 text-sm"
+                                  className="flex-1 bg-[#2DE2C5] text-[#05060F] hover:bg-[#1fb89e] font-semibold h-8 text-xs"
                                 >
-                                  {responding === h._id ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Check className="w-3.5 h-3.5 mr-1.5" /> Interested</>}
+                                  {responding === h._id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <><Check className="w-3 h-3 mr-1" /> Interested</>}
                                 </Button>
                                 <Button
                                   onClick={() => respond(h._id, 'decline')}
                                   disabled={responding === h._id}
                                   variant="outline"
-                                  className="flex-1 border-white/[0.08] text-[#AEB5E0] hover:text-white h-9 text-sm"
+                                  className="flex-1 border-white/[0.08] text-[#AEB5E0] hover:text-white h-8 text-xs"
                                 >
-                                  <X className="w-3.5 h-3.5 mr-1.5" /> Pass
+                                  <X className="w-3 h-3 mr-1" /> Pass
                                 </Button>
                               </div>
                             </div>
@@ -575,6 +509,114 @@ export default function AgentPage() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* ── RIGHT PANEL — Skills & tools (desktop only) ── */}
+      <div className="hidden lg:flex flex-col flex-1 overflow-hidden">
+
+        {/* Skill rings row */}
+        <div className="shrink-0 px-6 py-4 border-b border-white/[0.05]">
+          <div className="text-[10px] text-[#888FC0] uppercase tracking-widest font-semibold mb-3">Top skills</div>
+          {loading ? (
+            <div className="flex gap-3">
+              {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-16 w-28 rounded-xl bg-white/[0.03]" />)}
+            </div>
+          ) : skills.length === 0 ? (
+            <p className="text-xs text-[#888FC0]">No skills yet — complete an interview session to see your scores here.</p>
+          ) : (
+            <div className="flex gap-3 flex-wrap">
+              {skills.map((skill) => {
+                const color = getScoreColor(skill.proofScore)
+                return (
+                  <div key={skill.name} className="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-white/[0.03] border border-white/[0.04] hover:border-white/[0.08] transition-colors min-w-0">
+                    <div className="relative shrink-0">
+                      <ScoreRingMini score={skill.proofScore} size={44} />
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <span className="text-[11px] font-bold font-mono" style={{ color }}>{skill.proofScore}</span>
+                      </div>
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-xs font-medium truncate max-w-[72px]">{skill.name}</div>
+                      {skill.scoreHistory && skill.scoreHistory.length >= 2 && (
+                        <Sparkline history={skill.scoreHistory} />
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Tabs */}
+        <div className="shrink-0 flex border-b border-white/[0.05]">
+          {RIGHT_TABS.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => {
+                setRightTab(tab.id)
+                if (tab.id === 'learning' && !learningSkill && skills[0]) {
+                  setLearningSkill(skills[0].name)
+                }
+              }}
+              className={`flex-1 py-2.5 text-xs font-medium transition-colors border-b-2 ${
+                rightTab === tab.id
+                  ? 'text-[#2DE2C5] border-[#2DE2C5]'
+                  : 'text-[#AEB5E0] border-transparent hover:text-white hover:border-white/20'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Tab content */}
+        <div className="flex-1 overflow-y-auto p-5">
+          {rightTab === 'skills' && (
+            <>
+              <SkillUnlockPath
+                onStartSession={(skill, format) => {
+                  setLearningSkill(skill)
+                  window.location.href = `/interview/new?skill=${encodeURIComponent(skill)}&format=${format}`
+                }}
+              />
+              <MemoryInsights />
+            </>
+          )}
+          {rightTab === 'market' && <MarketFeed />}
+          {rightTab === 'learning' && (
+            <div>
+              {learningSkill ? (
+                <LearningPath skill={learningSkill} />
+              ) : skills.length > 0 ? (
+                <div>
+                  <p className="text-xs text-[#AEB5E0] mb-3">Select a skill to generate a learning plan:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {skills.map((s) => (
+                      <button key={s.name} onClick={() => setLearningSkill(s.name)}
+                        className="text-xs px-3 py-1.5 rounded-lg border border-white/[0.08] text-[#AEB5E0] hover:border-[#2DE2C5]/40 hover:text-[#2DE2C5] transition-colors">
+                        {s.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <p className="text-xs text-[#888FC0]">Complete an interview session to unlock learning paths.</p>
+              )}
+            </div>
+          )}
+          {rightTab === 'negotiate' && <NegotiationCoach />}
+        </div>
+      </div>
+
+      {/* Mobile: skills button to open right panel as drawer */}
+      <div className="lg:hidden fixed bottom-20 right-4">
+        <button
+          onClick={() => setRightTab(rightTab === 'skills' ? 'market' : 'skills')}
+          className="w-12 h-12 rounded-full bg-[#2DE2C5] text-[#05060F] flex items-center justify-center shadow-lg"
+        >
+          <TrendingUp className="w-5 h-5" />
+        </button>
       </div>
 
       {/* ── Preferences drawer ───────────────────────────────── */}

@@ -8,8 +8,9 @@ import { useTheme } from 'next-themes'
 import {
   LayoutDashboard, Sparkles, Link2, Video,
   MessageSquare, FileText, Settings, LogOut,
-  Sun, Moon, ExternalLink, ChevronDown,
+  Sun, Moon, ExternalLink,
 } from 'lucide-react'
+import { NotificationBell } from '@/components/NotificationBell'
 
 const MAIN_NAV = [
   { icon: LayoutDashboard, label: 'Dashboard',   href: '/dashboard',      exact: true },
@@ -114,6 +115,7 @@ export function CandidateNav({ username, unread = 0, footer }: CandidateNavProps
           </div>
           <span className="font-bold text-[14px] tracking-[-0.02em] text-sidebar-foreground">intervue</span>
         </Link>
+        <NotificationBell />
       </div>
 
       {/* User context */}

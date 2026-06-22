@@ -307,8 +307,8 @@ export default async function ProofPage({ params }: Params) {
         )}
 
         {/* Badge copy */}
-        <section className="mb-10">
-          <h3 className="text-xs font-semibold uppercase tracking-widest text-foreground/30 mb-3">Embed this badge</h3>
+        <section className="mb-6">
+          <h3 className="text-xs font-semibold uppercase tracking-widest text-foreground/30 mb-3">GitHub README badge</h3>
           <div className="rounded-xl border border-foreground/[0.07] bg-foreground/[0.02] p-4 space-y-3">
             {/* Live badge preview */}
             <div className="flex items-center gap-3">
@@ -323,6 +323,41 @@ export default async function ProofPage({ params }: Params) {
               </code>
               <CopyBadgeButton text={markdown} />
             </div>
+          </div>
+        </section>
+
+        {/* Embed snippet */}
+        <section className="mb-10">
+          <h3 className="text-xs font-semibold uppercase tracking-widest text-foreground/30 mb-3">Embed this skill</h3>
+          <div className="rounded-xl border border-foreground/[0.07] bg-foreground/[0.02] p-4 space-y-3">
+            <p className="text-xs text-foreground/35">Drop into any blog, Notion page, or portfolio with a single line of HTML.</p>
+            {/* iframe snippet */}
+            {(() => {
+              const iframeSnippet = `<iframe src="${origin}/embed/${username}/${encodeURIComponent(decodedSkill)}" width="320" height="80" frameborder="0" style="border:none"></iframe>`
+              const htmlSnippet = `<a href="${proofUrl}"><img src="${badgeUrl}" alt="${decodedSkill} ${skillData.proofScore} - Verified by Intervue" height="28"></a>`
+              return (
+                <div className="space-y-2">
+                  <div>
+                    <div className="text-[10px] text-foreground/25 uppercase tracking-wider mb-1">iframe (rich widget)</div>
+                    <div className="flex items-center gap-2">
+                      <code className="flex-1 text-[11px] font-mono text-foreground/40 bg-foreground/[0.04] px-3 py-2 rounded-lg truncate border border-foreground/[0.05]">
+                        {iframeSnippet}
+                      </code>
+                      <CopyBadgeButton text={iframeSnippet} />
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-foreground/25 uppercase tracking-wider mb-1">HTML (image badge)</div>
+                    <div className="flex items-center gap-2">
+                      <code className="flex-1 text-[11px] font-mono text-foreground/40 bg-foreground/[0.04] px-3 py-2 rounded-lg truncate border border-foreground/[0.05]">
+                        {htmlSnippet}
+                      </code>
+                      <CopyBadgeButton text={htmlSnippet} />
+                    </div>
+                  </div>
+                </div>
+              )
+            })()}
           </div>
         </section>
 

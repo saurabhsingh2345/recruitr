@@ -14,11 +14,21 @@ export interface ICodeSubmission {
   timestamp: Date
 }
 
+export interface IWeaknessSignal {
+  skill: string
+  topic: string
+  severity: 1 | 2 | 3
+  sessionId: Types.ObjectId
+  at: Date
+}
+
 export interface IInsightReport {
   strengths: string[]
   gaps: string[]
-  idealAnswers: Record<string, string>
+  idealAnswers: Array<{ question: string; answer: string }>
   studyRecommendations: string[]
+  aiVerdict: string
+  weaknessSignals: IWeaknessSignal[]
   generatedAt: Date
 }
 
@@ -43,6 +53,8 @@ export interface IInterviewSession extends Document {
     isFirstScore: boolean
   }
   githubContext: string
+  memoryContext: string
+  companyMode?: { jdSnippet: string; style: string; company: string }
   shareToken?: string
   createdAt: Date
   completedAt: Date
@@ -85,8 +97,19 @@ const InterviewSessionSchema = new Schema<IInterviewSession>({
   insightReport: {
     strengths: [String],
     gaps: [String],
-    idealAnswers: { type: Map, of: String, default: {} },
+    idealAnswers: { type: [{ question: String, answer: String }], default: [] },
     studyRecommendations: [String],
+    aiVerdict: { type: String, default: '' },
+    weaknessSignals: {
+      type: [{
+        skill: String,
+        topic: String,
+        severity: { type: Number, min: 1, max: 3, default: 1 },
+        sessionId: Schema.Types.ObjectId,
+        at: { type: Date, default: Date.now },
+      }],
+      default: [],
+    },
     generatedAt: Date,
   },
   scoreUpdate: {
@@ -97,6 +120,12 @@ const InterviewSessionSchema = new Schema<IInterviewSession>({
     isFirstScore: { type: Boolean, default: false },
   },
   githubContext: { type: String, default: '' },
+  memoryContext: { type: String, default: '' },
+  companyMode: {
+    jdSnippet: { type: String, default: '' },
+    style: { type: String, default: '' },
+    company: { type: String, default: '' },
+  },
   shareToken: { type: String, sparse: true, index: true },
   createdAt: { type: Date, default: Date.now },
   completedAt: Date,

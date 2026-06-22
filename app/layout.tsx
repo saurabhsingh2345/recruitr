@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { Poppins, Geist_Mono } from 'next/font/google'
+import { Poppins, Geist_Mono, Geist } from 'next/font/google'
 import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { Providers } from './providers'
@@ -10,6 +10,11 @@ const poppins = Poppins({
   subsets: ['latin'],
   weight: ['300', '400', '500', '600', '700', '800', '900'],
   display: 'swap',
+})
+
+const geistSans = Geist({
+  variable: '--font-geist-sans',
+  subsets: ['latin'],
 })
 
 const geistMono = Geist_Mono({
@@ -33,7 +38,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${poppins.variable} ${geistMono.variable} h-full`}
+      className={`${poppins.variable} ${geistSans.variable} ${geistMono.variable} h-full`}
     >
       <body className="min-h-full bg-background text-foreground" suppressHydrationWarning>
         <Providers>

@@ -7,6 +7,10 @@ import { User } from '@/lib/models/User'
 import { getModel } from '@/lib/groq'
 import { calculateCohortPercentile } from '@/lib/scoring'
 import { generateText } from 'ai'
+import { processReferralMilestone } from '@/lib/referrals'
+import { checkAndIssueCertificates } from '@/lib/certificates'
+import { createNotification } from '@/lib/notifications'
+import { extractWeaknessSignals } from '@/lib/memory'
 
 export async function POST(
   _req: NextRequest,
@@ -88,7 +92,8 @@ Return ONLY valid JSON (no markdown, no code fences):
       gaps: string[]
       studyRecommendations: string[]
       skillDelta: number
-      idealAnswers: Record<string, string>
+      idealAnswers: Record<string, string> | { question: string; answer: string }[]
+      aiVerdict?: string
     }
 
     try {
@@ -106,7 +111,38 @@ Return ONLY valid JSON (no markdown, no code fences):
         gaps: ['Could go deeper on edge cases'],
         studyRecommendations: ['Practice more problems in this area'],
         skillDelta: 5,
-        idealAnswers: {},
+        idealAnswers: [],
+        aiVerdict: 'Solid foundational understanding demonstrated.',
+      }
+    }
+
+    // Normalise idealAnswers: schema expects Array<{question, answer}>
+    const normalizedIdealAnswers = (() => {
+      const raw = analysis.idealAnswers
+      if (!raw) return []
+      if (Array.isArray(raw)) {
+        return (raw as { question?: string; answer?: string }[])
+          .filter(item => item?.question)
+          .map(item => ({ question: item.question!, answer: String(item.answer ?? '') }))
+      }
+      return Object.entries(raw as Record<string, string>).map(([question, answer]) => ({
+        question,
+        answer: String(answer),
+      }))
+    })()
+
+    // Generate a short punchy aiVerdict if not already in analysis
+    let aiVerdict = analysis.aiVerdict || ''
+    if (!aiVerdict) {
+      try {
+        const { text: verdictText } = await generateText({
+          model: await getModel(),
+          prompt: `Write a single punchy sentence (under 80 characters) summarising the candidate's demonstrated capability in this ${interviewSession.format} interview on ${interviewSession.targetSkill}. Score: ${analysis.overallScore}/100. Top strength: ${(analysis.strengths || [])[0] || 'solid fundamentals'}. Be specific and technical. No quotes, no punctuation at end.`,
+          maxOutputTokens: 60,
+        })
+        aiVerdict = verdictText.trim().replace(/['"]/g, '').slice(0, 100)
+      } catch {
+        aiVerdict = `${analysis.overallScore >= 70 ? 'Strong' : 'Developing'} ${interviewSession.targetSkill} fundamentals demonstrated.`
       }
     }
 
@@ -120,7 +156,7 @@ Return ONLY valid JSON (no markdown, no code fences):
     interviewSession.insightReport = {
       strengths: analysis.strengths || [],
       gaps: analysis.gaps || [],
-      idealAnswers: analysis.idealAnswers || {},
+      idealAnswers: normalizedIdealAnswers,
       studyRecommendations: analysis.studyRecommendations || [],
       generatedAt: new Date(),
     }
@@ -193,8 +229,8 @@ Return ONLY valid JSON (no markdown, no code fences):
           isFirstScore: false,
         }
       } else {
-        // New skill from this interview — use session score directly (not formula mismatch)
-        const newScore = Math.round(analysis.overallScore * 0.7 + 30 * 0.3)
+        // New skill from this interview — use session score directly, clamped 20–100
+        const newScore = Math.min(100, Math.max(20, Math.round(analysis.overallScore)))
 
         profile.parsedSkills.push({
           name: interviewSession.targetSkill,
@@ -240,11 +276,36 @@ Return ONLY valid JSON (no markdown, no code fences):
     interviewSession.scoreUpdate = scoreUpdateData
     await interviewSession.save()
 
+    // Fire-and-forget: referral milestone + certificate checks + notification + memory
+    const userId = session.user.id
+    extractWeaknessSignals(id, analysis.gaps || []).catch(() => {})
+    processReferralMilestone(userId).catch(() => {})
+    createNotification(
+      userId,
+      'interview_complete',
+      `${interviewSession.targetSkill} interview done`,
+      aiVerdict || `Score: ${scoreUpdateData.after}/100${scoreUpdateData.delta > 0 ? ` (+${scoreUpdateData.delta})` : ''}`,
+      `/interview/report/${id}`
+    ).catch(() => {})
+    if (profile && scoreUpdateData.delta !== 0) {
+      checkAndIssueCertificates(
+        userId,
+        scoreUpdateData.skill,
+        scoreUpdateData.before,
+        scoreUpdateData.after,
+        profile.parsedSkills.find(
+          (s: { name: string }) => s.name.toLowerCase() === scoreUpdateData.skill.toLowerCase()
+        )?.evidence || []
+      ).catch(() => {})
+    }
+
     return NextResponse.json({
       success: true,
       report: interviewSession.insightReport,
       scores: interviewSession.scores,
       scoreUpdate: scoreUpdateData,
+      cohortPercentile: profile?.cohortPercentile ?? 0,
+      aiVerdict,
     })
   } catch (error) {
     console.error('Interview complete error:', error)

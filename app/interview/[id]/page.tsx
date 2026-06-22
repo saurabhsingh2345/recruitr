@@ -26,6 +26,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner'
 import { VoiceOrb } from '@/components/VoiceOrb'
 import { Bot, User } from 'lucide-react'
+import { FormattedMessage } from '@/components/interview/FormattedMessage'
 
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), { ssr: false })
 
@@ -96,6 +97,7 @@ export default function InterviewSessionPage() {
   const [codeOutput, setCodeOutput] = useState('')
   const [isRunning, setIsRunning] = useState(false)
   const [isCompleting, setIsCompleting] = useState(false)
+  const [receipt, setReceipt] = useState<{ overallScore: number; scoreUpdate: { skill: string; before: number; after: number; delta: number }; aiVerdict: string } | null>(null)
   const [hintsUsed, setHintsUsed] = useState(0)
   const [startedAt] = useState(new Date())
   const [showOutput, setShowOutput] = useState(false)
@@ -143,6 +145,17 @@ export default function InterviewSessionPage() {
   useEffect(() => {
     return () => stopVoice()
   }, [])
+
+  // Mark session abandoned if user closes/navigates away mid-session
+  useEffect(() => {
+    const handleUnload = () => {
+      if (!receipt) {
+        navigator.sendBeacon(`/api/interview/${sessionId}/abandon`)
+      }
+    }
+    window.addEventListener('beforeunload', handleUnload)
+    return () => window.removeEventListener('beforeunload', handleUnload)
+  }, [sessionId, receipt])
 
   const handleLanguageChange = useCallback((lang: string | null) => {
     if (!lang) return
@@ -237,13 +250,18 @@ export default function InterviewSessionPage() {
     try {
       const res = await fetch(`/api/interview/${sessionId}/complete`, { method: 'POST' })
       if (res.ok) {
-        router.push(`/interview/report/${sessionId}`)
+        const data = await res.json()
+        setReceipt({
+          overallScore: data.scores?.overall ?? 0,
+          scoreUpdate: data.scoreUpdate ?? { skill: '', before: 0, after: 0, delta: 0 },
+          aiVerdict: data.aiVerdict ?? '',
+        })
       } else {
         toast.error('Failed to complete session')
+        setIsCompleting(false)
       }
     } catch {
       toast.error('Failed to complete session')
-    } finally {
       setIsCompleting(false)
     }
   }
@@ -385,6 +403,68 @@ export default function InterviewSessionPage() {
     gap: 'Gap Session',
   }
 
+  // Proof receipt overlay — shown after session completion before navigating to report
+  if (receipt) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#05060F] p-4">
+        <div className="w-full max-w-sm border border-[#27272A] rounded-2xl overflow-hidden">
+          {/* Header */}
+          <div className="px-6 py-4 border-b border-[#27272A] flex items-center justify-between">
+            <span className="text-[10px] text-[#71717A] uppercase tracking-widest font-mono">
+              Intervue · {new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+            </span>
+            <span className="text-[10px] px-2 py-0.5 bg-[#2DE2C5]/10 text-[#2DE2C5] border border-[#2DE2C5]/20 rounded font-mono">Verified</span>
+          </div>
+          {/* Score hero */}
+          <div className="px-6 py-8 text-center">
+            <div className="font-mono text-7xl font-medium text-white leading-none">{receipt.overallScore}</div>
+            <div className="text-[#71717A] text-sm mt-2 font-mono">
+              {sessionInfo?.format?.replace(/_/g, ' ')} · {sessionInfo?.targetSkill}
+            </div>
+          </div>
+          {/* Score delta */}
+          {receipt.scoreUpdate?.skill && (
+            <div className="px-6 py-4 border-t border-[#27272A] flex items-center justify-between">
+              <span className="text-sm text-[#A1A1AA] font-mono">{receipt.scoreUpdate.skill}</span>
+              <span className="font-mono text-sm text-[#2DE2C5]">
+                {receipt.scoreUpdate.before} → {receipt.scoreUpdate.after}
+                {receipt.scoreUpdate.delta > 0 && (
+                  <span className="text-xs ml-1.5 text-[#2DE2C5]/70">+{receipt.scoreUpdate.delta}</span>
+                )}
+              </span>
+            </div>
+          )}
+          {/* AI verdict */}
+          {receipt.aiVerdict && (
+            <div className="px-6 py-3 border-t border-[#27272A]">
+              <p className="text-xs text-[#71717A] italic text-center leading-relaxed">
+                &ldquo;{receipt.aiVerdict}&rdquo;
+              </p>
+            </div>
+          )}
+          {/* Actions */}
+          <div className="px-6 py-5 border-t border-[#27272A] flex gap-2">
+            <button
+              onClick={() => router.push(`/interview/report/${sessionId}`)}
+              className="flex-1 bg-[#2DE2C5] text-[#0A0A0B] rounded-xl py-2.5 text-sm font-semibold hover:bg-[#1fb89e] transition-colors"
+            >
+              View full report
+            </button>
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(`${window.location.origin}/interview/report/${sessionId}`)
+                toast.success('Report link copied')
+              }}
+              className="px-4 border border-[#27272A] text-[#A1A1AA] rounded-xl py-2.5 text-sm hover:border-[#3F3F46] transition-colors"
+            >
+              Share
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="h-screen flex flex-col bg-[#05060F]">
       {/* Top bar */}
@@ -506,14 +586,14 @@ export default function InterviewSessionPage() {
                     >
                       {msg.content === '[HINT REQUEST]' ? (
                         <span className="text-[#f59e0b] italic">Hint requested...</span>
+                      ) : msg.content ? (
+                        <FormattedMessage content={msg.content} />
                       ) : (
-                        msg.content || (
-                          <span className="flex items-center gap-1">
-                            <span className="loading-dot" />
-                            <span className="loading-dot" />
-                            <span className="loading-dot" />
-                          </span>
-                        )
+                        <span className="flex items-center gap-1">
+                          <span className="loading-dot" />
+                          <span className="loading-dot" />
+                          <span className="loading-dot" />
+                        </span>
                       )}
                     </div>
                   </div>

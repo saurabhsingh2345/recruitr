@@ -8,6 +8,7 @@
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-poppins);
+  --font-geist: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --font-heading: var(--font-sans);
   --color-sidebar-ring: var(--sidebar-ring);
@@ -57,6 +58,36 @@
   --color-violet: #8B7CF8;
   --color-cyan: #3FC5F0;
   --color-star: #C9D2FF;
+}
+
+/* ── Supplementary design tokens used by new components ── */
+:root {
+  /* Semantic text tokens */
+  --text-primary: #111827;
+  --text-secondary: #6B7280;
+  --text-tertiary: #9CA3AF;
+  /* Surface tokens */
+  --surface: #FFFFFF;
+  --surface-elevated: #F3F4F6;
+  /* Accent */
+  --accent-teal: #0EA5A0;
+  --accent-teal-hover: #0D9090;
+}
+
+.dark {
+  --text-primary: #FAFAFA;
+  --text-secondary: #A1A1AA;
+  --text-tertiary: #71717A;
+  --surface: #111113;
+  --surface-elevated: #1A1A1D;
+  --accent-teal: #2DD4BF;
+  --accent-teal-hover: #14B8A6;
+}
+
+/* Proof score / number display — always monospace */
+.proof-score {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
 }
 
 /* ── Light mode (default) ── warm cream palette, strong contrast ── */

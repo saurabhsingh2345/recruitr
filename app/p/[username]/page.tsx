@@ -1,20 +1,47 @@
 import { notFound } from 'next/navigation'
+import type { Metadata } from 'next'
 import Link from 'next/link'
-import { GitBranch, ExternalLink, MapPin, Award, Shield, Star, Briefcase, GraduationCap } from 'lucide-react'
+import { GitBranch, ExternalLink, MapPin, Shield, Star, Briefcase, GraduationCap } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { getScoreColor, getScoreLabel } from '@/lib/scoring'
+import { getScoreColor, getScoreLabel, getConfidenceBand } from '@/lib/scoring'
 import { ShareBadgeButton } from './ShareBadgeButton'
-import { SkillConstellation } from '@/components/SkillConstellation'
+import { RankCardShare } from '@/components/RankCardShare'
 import { ThemeMinimal } from '@/components/portfolio/ThemeMinimal'
 import { ThemeTerminal } from '@/components/portfolio/ThemeTerminal'
-import { ThemeMagazine } from '@/components/portfolio/ThemeMagazine'
-import { ThemeBento } from '@/components/portfolio/ThemeBento'
 import type { PortfolioData } from '@/components/portfolio/types'
 
 interface Params {
   params: Promise<{ username: string }>
   searchParams: Promise<{ theme?: string; preview?: string }>
+}
+
+export async function generateMetadata({ params }: Params): Promise<Metadata> {
+  const { username } = await params
+  const data = await getProfile(username)
+  if (!data) return {}
+
+  const { user, profile } = data
+  const rank = profile.cohortPercentile > 0 ? `Top ${100 - profile.cohortPercentile}%` : null
+  const baseUrl = process.env.NEXTAUTH_URL || 'https://intervue.in'
+  const rankCardUrl = `${baseUrl}/api/rank-card/${username}`
+
+  return {
+    title: `${user.name} — ${profile.targetRole || 'Engineer'} · Intervue`,
+    description: rank
+      ? `${user.name} is ${rank} of ${profile.targetRole || 'engineers'} in India, verified by Intervue.`
+      : `${user.name}'s verified engineering profile on Intervue.`,
+    openGraph: {
+      title: `${user.name} — ${rank ?? 'Verified'} on Intervue`,
+      description: `Proof-of-skill scores verified by AI interviews and GitHub.`,
+      images: [{ url: rankCardUrl, width: 1200, height: 630 }],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: `${user.name} — ${rank ?? 'Verified'} on Intervue`,
+      images: [rankCardUrl],
+    },
+  }
 }
 
 async function getProfile(username: string) {
@@ -30,50 +57,6 @@ async function getProfile(username: string) {
   }
 }
 
-function ScoreRing({ score, color }: { score: number; color: string }) {
-  const r = 22
-  const circ = 2 * Math.PI * r
-  const offset = circ - (score / 100) * circ
-  return (
-    <svg className="w-14 h-14 -rotate-90" viewBox="0 0 56 56">
-      <circle cx="28" cy="28" r={r} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="4" />
-      <circle
-        cx="28" cy="28" r={r} fill="none"
-        stroke={color} strokeWidth="4" strokeLinecap="round"
-        strokeDasharray={circ} strokeDashoffset={offset}
-      />
-    </svg>
-  )
-}
-
-function SkillBar({ name, score, evidence, username }: { name: string; score: number; evidence: string[]; username: string }) {
-  const color = getScoreColor(score)
-  return (
-    <div className="flex items-start gap-4 p-4 rounded-xl border border-white/[0.06] bg-white/[0.015] hover:border-white/[0.1] transition-colors group">
-      <div className="relative shrink-0">
-        <ScoreRing score={score} color={color} />
-        <div className="absolute inset-0 flex items-center justify-center">
-          <span className="text-xs font-bold font-mono" style={{ color }}>{score}</span>
-        </div>
-      </div>
-      <div className="flex-1 min-w-0 pt-1">
-        <div className="flex items-center gap-2 mb-1.5">
-          <span className="font-semibold text-sm">{name}</span>
-          <Badge
-            className="text-[9px] px-1.5 py-0 h-4 font-medium"
-            style={{ backgroundColor: color + '18', color, borderColor: color + '30' }}
-          >
-            {getScoreLabel(score)}
-          </Badge>
-          <ShareBadgeButton username={username} skillName={name} />
-        </div>
-        {evidence.slice(0, 2).map((e, i) => (
-          <p key={i} className="text-xs text-[#888FC0] leading-relaxed">· {e}</p>
-        ))}
-      </div>
-    </div>
-  )
-}
 
 export default async function PublicProfilePage({ params, searchParams }: Params) {
   const { username } = await params
@@ -83,26 +66,18 @@ export default async function PublicProfilePage({ params, searchParams }: Params
 
   const { user, profile } = data
 
-  /* ── Theme routing — searchParams.theme overrides saved theme ── */
+  /* ── Theme routing ── only minimal and terminal ── */
   const resolvedTheme = themeOverride || profile.portfolioTheme
-  if (resolvedTheme) {
+  if (resolvedTheme === 'minimal' || resolvedTheme === 'terminal') {
     const portfolioData: PortfolioData = { user, profile }
-    switch (resolvedTheme) {
-      case 'minimal':   return <ThemeMinimal {...portfolioData} />
-      case 'terminal':  return <ThemeTerminal {...portfolioData} />
-      case 'magazine':  return <ThemeMagazine {...portfolioData} />
-      case 'bento':     return <ThemeBento {...portfolioData} />
-    }
+    if (resolvedTheme === 'minimal') return <ThemeMinimal {...portfolioData} />
+    return <ThemeTerminal {...portfolioData} />
   }
 
-  /* ── Default layout (no theme chosen yet) ───────────────────── */
-  const topSkills = (profile.parsedSkills?.sort(
+  /* ── Default layout ───────────────────────────────────────────── */
+  const allSkills = (profile.parsedSkills || []).sort(
     (a: { proofScore: number }, b: { proofScore: number }) => b.proofScore - a.proofScore
-  ) || []).slice(0, 5)
-
-  const avgScore = topSkills.length > 0
-    ? Math.round(topSkills.reduce((s: number, sk: { proofScore: number }) => s + sk.proofScore, 0) / topSkills.length)
-    : 0
+  )
 
   return (
     <div className="min-h-screen text-foreground">
@@ -124,106 +99,103 @@ export default async function PublicProfilePage({ params, searchParams }: Params
         </div>
       </nav>
 
-      {/* Constellation hero */}
-      <div className="relative overflow-hidden border-b border-white/[0.05]">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_60%_at_50%_0%,rgba(45,226,197,0.1),transparent_60%)] pointer-events-none" />
-        <div className="relative max-w-3xl mx-auto px-6 pt-10 pb-8 flex justify-center">
-          {topSkills.length > 0 ? (
-            <SkillConstellation
-              skills={topSkills}
-              centerLabel={(user.name?.[0] || 'U').toUpperCase()}
-              avatarUrl={user.avatarUrl || undefined}
-              size={380}
-            />
-          ) : user.avatarUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={user.avatarUrl}
-              alt={user.name}
-              className="w-24 h-24 rounded-full border-4 border-[#05060F] shadow-[0_0_0_2px_rgba(45,226,197,0.3)] mt-6"
-            />
-          ) : (
-            <div className="w-24 h-24 rounded-full border-4 border-[#05060F] bg-gradient-to-br from-[#2DE2C5] to-[#8B7CF8] flex items-center justify-center text-[#05060F] font-bold text-2xl shadow-[0_0_0_2px_rgba(45,226,197,0.3)] mt-6">
-              {user.name?.[0] || 'U'}
-            </div>
-          )}
-        </div>
-      </div>
-
       <div className="relative max-w-3xl mx-auto px-6 pt-8 pb-20 space-y-7">
 
-        {/* Identity block */}
-        <div className="text-center space-y-3">
-          <div className="flex items-center justify-center gap-2 flex-wrap">
-            <h1 className="text-2xl font-bold">{user.name}</h1>
-            <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#2DE2C5]/10 border border-[#2DE2C5]/25">
-              <Shield className="w-3 h-3 text-[#2DE2C5]" />
-              <span className="text-[10px] text-[#2DE2C5] font-semibold">Verified by Intervue</span>
+        {/* Profile header — identity + rank number */}
+        <header className="border-b border-white/[0.06] pb-6">
+          <div className="flex items-start justify-between gap-4">
+            {/* Left: avatar + identity */}
+            <div className="flex items-center gap-4 min-w-0">
+              {user.avatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={user.avatarUrl} alt={user.name} className="w-14 h-14 rounded-full shrink-0" />
+              ) : (
+                <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[#2DE2C5] to-[#8B7CF8] flex items-center justify-center text-[#05060F] font-bold text-xl shrink-0">
+                  {user.name?.[0] || 'U'}
+                </div>
+              )}
+              <div className="min-w-0">
+                <h1 className="text-xl font-semibold leading-tight">{user.name}</h1>
+                {profile.bio && (
+                  <p className="text-sm text-[#888FC0] mt-0.5 truncate max-w-xs">{profile.bio}</p>
+                )}
+                <div className="flex items-center gap-2 mt-2 flex-wrap">
+                  <span className="text-[10px] px-2 py-0.5 rounded bg-[#2DE2C5]/10 text-[#2DE2C5] border border-[#2DE2C5]/20 font-medium">
+                    Verified by Intervue
+                  </span>
+                  {profile.vouchedBadge && (
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-[#8B7CF8]/10 text-[#8B7CF8] border border-[#8B7CF8]/20 font-medium">
+                      Vouched
+                    </span>
+                  )}
+                  {profile.location && (
+                    <span className="flex items-center gap-1 text-[10px] text-[#888FC0]">
+                      <MapPin className="w-2.5 h-2.5" />{profile.location}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Right: THE NUMBER — what a recruiter's eye lands on */}
+            <div className="text-right shrink-0 flex flex-col items-end gap-3">
+              {profile.cohortPercentile > 0 && (
+                <div>
+                  <div className="font-mono text-4xl font-medium leading-none">
+                    Top {100 - profile.cohortPercentile}%
+                  </div>
+                  <div className="text-xs text-[#888FC0] mt-1">
+                    of {profile.targetRole || 'engineers'} in India
+                  </div>
+                </div>
+              )}
+              <RankCardShare username={username} percentile={profile.cohortPercentile} />
             </div>
           </div>
+        </header>
 
-          {profile.targetRole && (
-            <p className="text-[#AEB5E0] text-sm font-medium">{profile.targetRole}</p>
-          )}
-
-          <div className="flex items-center justify-center gap-4 flex-wrap">
-            {profile.location && (
-              <div className="flex items-center gap-1 text-xs text-[#888FC0]">
-                <MapPin className="w-3 h-3" />
-                {profile.location}
-              </div>
-            )}
-            <a
-              href={`https://github.com/${user.username}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1 text-xs text-[#888FC0] hover:text-[#2DE2C5] transition-colors"
-            >
-              <GitBranch className="w-3 h-3" />
-              @{user.username}
-            </a>
-          </div>
-
-          <div className="flex items-center justify-center gap-2 flex-wrap pt-1">
-            {profile.yearsOfExperience > 0 && (
-              <Badge className="bg-white/[0.04] text-[#AEB5E0] border-white/[0.07] text-xs">
-                {profile.yearsOfExperience}+ yrs exp
-              </Badge>
-            )}
-            {avgScore > 0 && (
-              <Badge className="bg-[#2DE2C5]/10 text-[#2DE2C5] border-[#2DE2C5]/20 text-xs">
-                Avg score {avgScore}
-              </Badge>
-            )}
-            {profile.cohortPercentile > 0 && (
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#f59e0b]/10 border border-[#f59e0b]/20">
-                <Award className="w-3 h-3 text-[#f59e0b]" />
-                <span className="text-xs text-[#f59e0b]">
-                  Top {100 - profile.cohortPercentile}% · {profile.targetRole} India
-                </span>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {profile.bio && (
-          <p className="text-center text-sm text-[#AEB5E0] leading-relaxed max-w-lg mx-auto">
-            {profile.bio}
-          </p>
-        )}
-
-        {/* Skill scores */}
-        {topSkills.length > 0 && (
+        {/* Verified skills — ranked list */}
+        {allSkills.length > 0 && (
           <section>
-            <div className="flex items-center gap-2 mb-4">
-              <Shield className="w-4 h-4 text-[#2DE2C5]" />
-              <h2 className="font-semibold text-sm">Proof-of-Skill Scores</h2>
-              <span className="text-xs text-[#888FC0] ml-auto">Verified via AI interviews + GitHub</span>
-            </div>
-            <div className="space-y-2">
-              {topSkills.map((skill: { name: string; proofScore: number; evidence: string[] }) => (
-                <SkillBar key={skill.name} name={skill.name} score={skill.proofScore} evidence={skill.evidence} username={username} />
-              ))}
+            <h2 className="text-[10px] font-medium uppercase tracking-wider text-[#888FC0] mb-4">
+              Verified skills
+            </h2>
+            <div className="space-y-3">
+              {allSkills.map((skill: { name: string; proofScore: number; evidence: string[]; scoreHistory?: { score: number }[] }) => {
+                const color = getScoreColor(skill.proofScore)
+                const band = skill.scoreHistory && skill.scoreHistory.length >= 3
+                  ? getConfidenceBand(skill.scoreHistory)
+                  : null
+                return (
+                  <div key={skill.name} className="flex items-center gap-3 group">
+                    <div className="w-28 text-sm text-white/70 group-hover:text-[#2DE2C5] transition-colors truncate">
+                      {skill.name}
+                    </div>
+                    <div className="flex-1 h-1.5 bg-white/[0.05] rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all"
+                        style={{ width: `${skill.proofScore}%`, backgroundColor: color }}
+                      />
+                    </div>
+                    <div className="text-right w-10 shrink-0">
+                      <div className="font-mono text-sm font-medium leading-none" style={{ color }}>
+                        {skill.proofScore}
+                      </div>
+                      {band && band.sigma > 0 && (
+                        <div className="font-mono text-[9px] text-[#888FC0] leading-none mt-0.5">
+                          ±{band.sigma}
+                        </div>
+                      )}
+                    </div>
+                    <div className="text-[10px] text-[#888FC0] w-16 text-right shrink-0">
+                      {skill.evidence?.length > 0
+                        ? `${skill.evidence.length} ${skill.evidence.length === 1 ? 'source' : 'sources'}`
+                        : getScoreLabel(skill.proofScore)}
+                    </div>
+                    <ShareBadgeButton username={username} skillName={skill.name} />
+                  </div>
+                )
+              })}
             </div>
           </section>
         )}

@@ -1,16 +1,62 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { auth } from '@/lib/auth'
 import { connectDB } from '@/lib/mongodb'
 import { Profile } from '@/lib/models/Profile'
 import { User } from '@/lib/models/User'
+import { BadgeEvent } from '@/lib/models/BadgeEvent'
+import { searchCandidates } from '@/lib/typesense'
+import crypto from 'crypto'
+
+function maskCandidate(candidate: Record<string, unknown>): Record<string, unknown> {
+  const id = (candidate._id || candidate.userId || '').toString()
+  const hash = crypto.createHash('md5').update(id).digest('hex').slice(0, 6).toUpperCase()
+  return {
+    ...candidate,
+    _id: id,
+    user: candidate.user
+      ? {
+          name: `Candidate #${hash}`,
+          username: `candidate-${hash.toLowerCase()}`,
+          avatarUrl: null,
+          openToWork: (candidate.user as Record<string, unknown>).openToWork,
+          lastSessionDate: (candidate.user as Record<string, unknown>).lastSessionDate,
+          _masked: true,
+          _originalId: id,
+        }
+      : null,
+    parsedSkills: (candidate.parsedSkills as { name: string; proofScore: number; evidence: string[] }[] || []).map((s) => ({
+      ...s,
+      evidence: s.evidence?.map((e: string) =>
+        e.replace(/https?:\/\/[^\s]+/g, '[repo]').replace(/github\.com\/[^\s/]+/g, '[github]')
+      ) || [],
+    })),
+    githubUsername: null,
+    bio: (candidate.bio as string || '').slice(0, 80) || '',
+  }
+}
 
 export async function POST(req: NextRequest) {
   try {
-    const { query, skills = [], minScore = 0, targetRole = '', page = 1 } = await req.json()
+    const { query, skills = [], minScore = 0, targetRole = '', page = 1, blind = false, vouchedOnly = false } = await req.json()
+    const session = await auth()
+
+    // Try Typesense first for full-text search; fall back to MongoDB on miss/error
+    const tsHits = await searchCandidates({ q: query || '*', skills, page, perPage: 12 })
+    if (tsHits) {
+      return NextResponse.json({
+        candidates: tsHits,
+        total: tsHits.length,
+        pages: 1,
+        currentPage: page,
+        source: 'typesense',
+      })
+    }
 
     await connectDB()
 
     // Build filter
     const filter: Record<string, unknown> = { isPublic: true }
+    if (vouchedOnly) filter['vouchedBadge'] = true
 
     if (skills.length > 0) {
       // Each skill must match individually — $and ensures ALL required skills are present,
@@ -74,11 +120,27 @@ export async function POST(req: NextRequest) {
       })
     }
 
+    const finalCandidates = blind
+      ? enriched.map((c) => maskCandidate(c as unknown as Record<string, unknown>))
+      : enriched
+
+    // Log blind reveals for audit if recruiter is authenticated
+    if (blind && session?.user?.id) {
+      BadgeEvent.create({
+        type: 'badge_serve',
+        username: session.user.id,
+        skill: 'blind_search',
+        referer: '',
+        at: new Date(),
+      }).catch(() => {})
+    }
+
     return NextResponse.json({
-      candidates: enriched,
+      candidates: finalCandidates,
       total,
       pages: Math.ceil(total / limit),
       currentPage: page,
+      blind,
     })
   } catch (error) {
     console.error('Recruiter search error:', error)

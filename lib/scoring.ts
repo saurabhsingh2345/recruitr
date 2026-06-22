@@ -28,6 +28,24 @@ export function getScoreLabel(score: number): string {
   return 'Beginner'
 }
 
+/**
+ * Returns a ±N confidence band based on standard deviation of recent scores.
+ * A narrow band means consistent performance; a wide band means high variance.
+ */
+export function getConfidenceBand(scoreHistory: { score: number }[]): { low: number; high: number; sigma: number } {
+  if (scoreHistory.length < 2) return { low: 0, high: 0, sigma: 0 }
+  const scores = scoreHistory.map(h => h.score)
+  const mean = scores.reduce((a, b) => a + b, 0) / scores.length
+  const variance = scores.reduce((a, b) => a + (b - mean) ** 2, 0) / scores.length
+  const sigma = Math.round(Math.sqrt(variance))
+  const latest = scores[scores.length - 1]
+  return {
+    low: Math.max(0, latest - sigma),
+    high: Math.min(100, latest + sigma),
+    sigma,
+  }
+}
+
 export function getScoreColor(score: number): string {
   // Cosmic spectrum — teal (high) → cyan → violet → orchid → rose (low)
   if (score >= 85) return '#2DE2C5'

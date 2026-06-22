@@ -40,7 +40,7 @@ export async function POST(
       ? `[HINT REQUEST] The candidate is stuck and needs a hint. Give a Socratic nudge — ask a guiding question without revealing the answer.`
       : message
 
-    // Enrich system prompt with session context
+    // Enrich system prompt with session context (memory + optional company mode)
     const contextualSystem = [
       INTERVIEW_SYSTEM_PROMPT,
       interviewSession.githubContext
@@ -48,6 +48,10 @@ export async function POST(
         : '',
       `\nInterview format: ${interviewSession.format}`,
       `Target skill: ${interviewSession.targetSkill}`,
+      interviewSession.memoryContext || '',
+      interviewSession.companyMode?.style
+        ? `\n[COMPANY MODE]\n${interviewSession.companyMode.style}`
+        : '',
     ]
       .filter(Boolean)
       .join('\n')
@@ -61,19 +65,23 @@ export async function POST(
       ],
       maxOutputTokens: 400,
       onFinish: async ({ text }) => {
-        interviewSession.messages.push({
-          role: 'candidate',
-          content: message,
-          timestamp: new Date(),
-          hintsUsed: isHint ? 1 : 0,
-        })
-        interviewSession.messages.push({
-          role: 'ai',
-          content: text,
-          timestamp: new Date(),
-          hintsUsed: 0,
-        })
-        await interviewSession.save()
+        try {
+          interviewSession.messages.push({
+            role: 'candidate',
+            content: message,
+            timestamp: new Date(),
+            hintsUsed: isHint ? 1 : 0,
+          })
+          interviewSession.messages.push({
+            role: 'ai',
+            content: text,
+            timestamp: new Date(),
+            hintsUsed: 0,
+          })
+          await interviewSession.save()
+        } catch (err) {
+          console.error('Failed to persist messages:', err)
+        }
       },
     })
 

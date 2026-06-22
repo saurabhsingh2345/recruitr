@@ -17,6 +17,7 @@ import IORedis from 'ioredis'
 import { QUEUE_SYNC, QUEUE_SOURCING } from './lib/queue'
 import { runConnectionSync } from './lib/jobs/syncConnections'
 import { runSourcing } from './lib/jobs/runSourcing'
+import { runAutonomousSourcing } from './lib/jobs/autonomousSourcing'
 
 const REDIS_URL = process.env.REDIS_URL
 if (!REDIS_URL) {
@@ -46,16 +47,29 @@ const sourcingWorker = new Worker(
   { connection, concurrency: 2 }
 )
 
-for (const [name, w] of [['sync', syncWorker], ['sourcing', sourcingWorker]] as const) {
+const autoSourcingWorker = new Worker(
+  'autonomous-sourcing',
+  async (job) => {
+    console.log(`[auto-sourcing] ${job.id} — user ${job.data.userId}`)
+    return runAutonomousSourcing(job.data.userId, job.data.updatedSkills || [])
+  },
+  { connection, concurrency: 3 }
+)
+
+for (const [name, w] of [
+  ['sync', syncWorker],
+  ['sourcing', sourcingWorker],
+  ['auto-sourcing', autoSourcingWorker],
+] as const) {
   w.on('completed', (job) => console.log(`✓ [${name}] ${job.id} done`))
   w.on('failed', (job, err) => console.error(`✗ [${name}] ${job?.id} failed:`, err.message))
 }
 
-console.log('✓ Worker running — listening on connection-sync + role-sourcing')
+console.log('✓ Worker running — listening on connection-sync + role-sourcing + autonomous-sourcing')
 
 async function shutdown() {
   console.log('\nShutting down workers…')
-  await Promise.all([syncWorker.close(), sourcingWorker.close()])
+  await Promise.all([syncWorker.close(), sourcingWorker.close(), autoSourcingWorker.close()])
   await redis.quit()
   process.exit(0)
 }

@@ -7,6 +7,8 @@ import { getModel, PROFILE_GENERATION_PROMPT } from '@/lib/groq'
 import { calculateProofScore, calculateCohortPercentile } from '@/lib/scoring'
 import { fetchGitHubRepos, reposToSummary } from '@/lib/github'
 import { generateText } from 'ai'
+import { checkWatchlistAlerts } from '@/lib/watchlist'
+import { enqueueAutonomousSourcing } from '@/lib/queues/autonomousSourcing'
 
 export async function POST(_req: NextRequest) {
   const session = await auth()
@@ -104,6 +106,14 @@ ${profile.rawResumeText || 'No resume uploaded yet.'}
     } catch {
       // Non-fatal
     }
+
+    // Fire-and-forget: watchlist alerts + autonomous sourcing
+    const updatedSkills = profile.parsedSkills.map((s: { name: string; proofScore: number }) => ({
+      name: s.name,
+      newScore: s.proofScore,
+    }))
+    checkWatchlistAlerts(session.user.id, updatedSkills).catch(() => {})
+    enqueueAutonomousSourcing(session.user.id, updatedSkills.map((s: { name: string }) => s.name)).catch(() => {})
 
     return NextResponse.json({
       success: true,

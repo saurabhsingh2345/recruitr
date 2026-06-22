@@ -6,7 +6,7 @@ import { useParams } from 'next/navigation'
 import { motion } from 'framer-motion'
 import {
   Code2, ArrowLeft, Sparkles, Loader2, Target, MapPin, Building2,
-  CheckCircle2, XCircle, Clock, ExternalLink, Zap, ShieldCheck, Plus, X,
+  CheckCircle2, XCircle, Clock, ExternalLink, Zap, ShieldCheck, Plus, X, Users,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -53,6 +53,13 @@ export default function RoleDetailPage() {
   const [asks, setAsks] = useState<string[]>([])
   const [newAsk, setNewAsk] = useState('')
   const [expanded, setExpanded] = useState<string | null>(null)
+  const [forecast, setForecast] = useState<{
+    totalPassingAllGates: number
+    totalVerifiedCandidates: number
+    skillGates: { skill: string; required: number; candidatesAboveBar: number; sensitivityGain: number }[]
+    bottleneckSkill: string | null
+  } | null>(null)
+  const [forecastLoading, setForecastLoading] = useState(false)
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/roles/${id}`)
@@ -65,6 +72,21 @@ export default function RoleDetailPage() {
   }, [id])
 
   useEffect(() => { load() }, [load])
+
+  const loadForecast = useCallback(async () => {
+    if (!role) return
+    setForecastLoading(true)
+    try {
+      const res = await fetch('/api/recruiter/roles/forecast', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mustHave: role.mustHave, locations: role.locations }),
+      })
+      if (res.ok) setForecast(await res.json())
+    } finally {
+      setForecastLoading(false)
+    }
+  }, [role])
 
   async function runSourcing() {
     setSourcing(true)
@@ -213,6 +235,51 @@ export default function RoleDetailPage() {
                 <Plus className="w-3.5 h-3.5" />
               </button>
             </div>
+          </div>
+
+          {/* Pool forecast panel */}
+          <div className="node-panel p-5">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-1.5">
+                <Users className="w-3.5 h-3.5 text-[#3FC5F0]" />
+                <div className="text-[10px] text-[#888FC0] uppercase tracking-wider font-semibold">Pool forecast</div>
+              </div>
+              <button
+                onClick={loadForecast}
+                disabled={forecastLoading}
+                className="text-[10px] text-[#2DE2C5] hover:text-[#5BF0D8] transition-colors disabled:opacity-50"
+              >
+                {forecastLoading ? <Loader2 className="w-3 h-3 animate-spin inline" /> : 'Check pool →'}
+              </button>
+            </div>
+            {forecast ? (
+              <div className="space-y-2">
+                <div className="flex items-baseline gap-1">
+                  <span className="text-2xl font-bold text-white">{forecast.totalPassingAllGates}</span>
+                  <span className="text-xs text-[#AEB5E0]">of {forecast.totalVerifiedCandidates} pass all gates</span>
+                </div>
+                {forecast.skillGates.map((g) => (
+                  <div key={g.skill} className="space-y-0.5">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-[#AEB5E0]">{g.skill} ≥{g.required}</span>
+                      <span className="font-mono text-white">{g.candidatesAboveBar}</span>
+                    </div>
+                    {g.sensitivityGain > 0 && (
+                      <div className="text-[10px] text-[#888FC0]">
+                        Loosen by 10 → +{g.sensitivityGain} candidates
+                      </div>
+                    )}
+                  </div>
+                ))}
+                {forecast.bottleneckSkill && (
+                  <div className="mt-2 pt-2 border-t border-white/[0.05] text-[11px] text-[#f59e0b]">
+                    ⚠ Bottleneck: {forecast.bottleneckSkill}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="text-[11px] text-[#888FC0]">Click "Check pool" to see how many verified engineers clear this role&apos;s bar.</p>
+            )}
           </div>
 
           <Button onClick={runSourcing} disabled={sourcing} className="w-full bg-[#2DE2C5] text-[#05060F] hover:bg-[#1fb89e] font-semibold">

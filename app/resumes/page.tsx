@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 
+
 interface ResumeData {
   name: string
   headline: string
@@ -31,6 +32,32 @@ interface SavedResume {
 
 function ResumePreview({ data }: { data: ResumeData }) {
   const [copied, setCopied] = useState(false)
+  const [downloading, setDownloading] = useState(false)
+
+  async function handleDownloadPDF() {
+    setDownloading(true)
+    try {
+      const [pdfLib, { ResumePDF }, React] = await Promise.all([
+        import('@react-pdf/renderer'),
+        import('@/components/resume/ResumePDF'),
+        import('react'),
+      ])
+      const element = React.createElement(ResumePDF, { data })
+      // @react-pdf/renderer types are strict; the element is a valid Document tree
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const blob = await pdfLib.pdf(element as any).toBlob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${(data.name || 'resume').replace(/\s+/g, '-').toLowerCase()}-resume.pdf`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      toast.error('PDF generation failed')
+    } finally {
+      setDownloading(false)
+    }
+  }
 
   function toAtsText() {
     return [
@@ -72,10 +99,12 @@ function ResumePreview({ data }: { data: ResumeData }) {
             {copied ? 'Copied' : 'Copy ATS text'}
           </button>
           <button
-            onClick={() => toast.info('PDF export coming soon')}
-            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-[#2DE2C5]/10 border border-[#2DE2C5]/20 text-[#2DE2C5] hover:bg-[#2DE2C5]/20 transition-colors"
+            onClick={handleDownloadPDF}
+            disabled={downloading}
+            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-[#2DE2C5]/10 border border-[#2DE2C5]/20 text-[#2DE2C5] hover:bg-[#2DE2C5]/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <Download className="w-3 h-3" /> PDF
+            {downloading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
+            {downloading ? 'Generating…' : 'Download PDF'}
           </button>
         </div>
       </div>

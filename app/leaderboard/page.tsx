@@ -1,5 +1,7 @@
 import Link from 'next/link'
-import { Code2, Trophy, Medal, Award, ArrowRight } from 'lucide-react'
+import type { Metadata } from 'next'
+import type { PipelineStage } from 'mongoose'
+import { Code2, Trophy, Medal, Award, ArrowRight, Shield } from 'lucide-react'
 import { connectDB } from '@/lib/mongodb'
 import { User } from '@/lib/models/User'
 import { Profile } from '@/lib/models/Profile'
@@ -11,51 +13,98 @@ interface LeaderRow {
   username: string
   name: string
   avatarUrl: string
-  topSkill: string
-  topScore: number
+  score: number
   cohortPercentile: number
+  vouchedBadge: boolean
   location: string
-  targetRole: string
 }
 
-async function getLeaderboard(): Promise<LeaderRow[]> {
+interface SearchParams {
+  skill?: string
+  city?: string
+}
+
+async function getLeaderboard(skill?: string, city?: string): Promise<LeaderRow[]> {
   await connectDB()
+  const limit = 20
 
-  const profiles = await Profile.find({ isPublic: { $ne: false } })
-    .sort({ cohortPercentile: -1 })
-    .limit(50)
-    .lean()
+  const pipeline: PipelineStage[] = [
+    { $match: { isPublic: { $ne: false }, discoverability: { $ne: 'invisible' } } },
+  ]
 
-  // Batch-load all users in one query instead of N sequential findById calls
-  const userIds = profiles.map((p) => p.userId)
-  const users = await User.find({ _id: { $in: userIds } })
-    .select('username name avatarUrl openToWork')
-    .lean()
-  const userMap = new Map(users.map((u) => [String(u._id), u]))
-
-  const rows: LeaderRow[] = []
-
-  for (const p of profiles) {
-    const user = userMap.get(String(p.userId))
-    if (!user) continue
-
-    const skills: { name: string; proofScore: number }[] = p.parsedSkills || []
-    const topSkill = [...skills].sort((a, b) => b.proofScore - a.proofScore)[0]
-
-    rows.push({
-      rank: rows.length + 1,
-      username: user.username || '',
-      name: user.name || 'Anonymous',
-      avatarUrl: user.avatarUrl || '',
-      topSkill: topSkill?.name || '',
-      topScore: Math.round(topSkill?.proofScore || 0),
-      cohortPercentile: Math.round(p.cohortPercentile || 0),
-      location: p.location || '',
-      targetRole: p.targetRole || '',
+  if (skill) {
+    pipeline.push({
+      $match: { parsedSkills: { $elemMatch: { name: { $regex: skill, $options: 'i' } } } },
     })
   }
+  if (city) {
+    pipeline.push({ $match: { location: { $regex: city, $options: 'i' } } })
+  }
 
-  return rows
+  pipeline.push(
+    {
+      $addFields: {
+        sortScore: skill
+          ? {
+              $let: {
+                vars: {
+                  sk: {
+                    $arrayElemAt: [
+                      {
+                        $filter: {
+                          input: '$parsedSkills',
+                          as: 's',
+                          cond: { $regexMatch: { input: '$$s.name', regex: skill, options: 'i' } },
+                        },
+                      },
+                      0,
+                    ],
+                  },
+                },
+                in: '$$sk.proofScore',
+              },
+            }
+          : { $avg: '$parsedSkills.proofScore' },
+      },
+    },
+    { $match: { sortScore: { $gt: 0 } } },
+    { $sort: { sortScore: -1 } },
+    { $limit: limit },
+    { $lookup: { from: 'users', localField: 'userId', foreignField: '_id', as: 'user' } },
+    { $unwind: '$user' },
+    {
+      $project: {
+        username: '$user.username',
+        name: '$user.name',
+        avatarUrl: '$user.avatarUrl',
+        score: '$sortScore',
+        cohortPercentile: 1,
+        vouchedBadge: 1,
+        location: 1,
+      },
+    }
+  )
+
+  const results = await Profile.aggregate(pipeline)
+  return results.map((r, i) => ({ ...r, rank: i + 1, score: Math.round(r.score || 0) }))
+}
+
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>
+}): Promise<Metadata> {
+  const { skill, city } = await searchParams
+  const skillLabel = skill || 'all skills'
+  const cityLabel = city || 'India'
+  return {
+    title: `Top ${skillLabel} engineers in ${cityLabel} — Intervue`,
+    description: `Verified proof scores for the best ${skillLabel} engineers in ${cityLabel}. Powered by Intervue.`,
+    openGraph: {
+      title: `Top ${skillLabel} engineers in ${cityLabel} — Intervue`,
+      description: `Verified proof scores for the best ${skillLabel} engineers in ${cityLabel}.`,
+    },
+  }
 }
 
 function RankIcon({ rank }: { rank: number }) {
@@ -65,10 +114,19 @@ function RankIcon({ rank }: { rank: number }) {
   return <span className="text-xs font-mono text-[#888FC0] w-4 text-center">{rank}</span>
 }
 
-export default async function LeaderboardPage() {
+// Common skills + cities for quick filter chips
+const SKILL_CHIPS = ['Go', 'TypeScript', 'Python', 'Rust', 'React', 'Node.js', 'Kubernetes']
+const CITY_CHIPS = ['Bangalore', 'Mumbai', 'Delhi', 'Hyderabad', 'Pune', 'Remote']
+
+export default async function LeaderboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>
+}) {
+  const { skill, city } = await searchParams
   let rows: LeaderRow[] = []
   try {
-    rows = await getLeaderboard()
+    rows = await getLeaderboard(skill, city)
   } catch {
     rows = []
   }
@@ -76,10 +134,18 @@ export default async function LeaderboardPage() {
   const top3 = rows.slice(0, 3)
   const rest = rows.slice(3)
 
+  function filterUrl(s?: string, c?: string) {
+    const params = new URLSearchParams()
+    if (s) params.set('skill', s)
+    if (c) params.set('city', c)
+    const q = params.toString()
+    return `/leaderboard${q ? `?${q}` : ''}`
+  }
+
   return (
     <div className="min-h-screen text-foreground">
       {/* Nav */}
-      <nav className="border-b border-[#1A1E3A] px-6 h-14 flex items-center justify-between">
+      <nav className="border-b border-white/[0.06] px-6 h-14 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2">
           <div className="w-6 h-6 rounded-lg bg-[#2DE2C5] flex items-center justify-center">
             <Code2 className="w-3.5 h-3.5 text-[#05060F]" />
@@ -88,7 +154,7 @@ export default async function LeaderboardPage() {
         </Link>
         <div className="flex items-center gap-3">
           <Link href="/recruiter">
-            <Button size="sm" variant="outline" className="border-[#1A1E3A] text-[#AEB5E0] hover:text-white text-xs">
+            <Button size="sm" variant="outline" className="border-white/[0.08] text-[#AEB5E0] hover:text-white text-xs">
               Recruiter search
             </Button>
           </Link>
@@ -100,31 +166,66 @@ export default async function LeaderboardPage() {
         </div>
       </nav>
 
-      <div className="max-w-4xl mx-auto px-6 py-12">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
         {/* Header */}
-        <div className="text-center mb-12">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-[#1A1E3A] bg-[#0B0E1C] text-xs text-[#AEB5E0] mb-4">
-            <Trophy className="w-3 h-3 text-[#ffd700]" />
-            India top engineers
+        <div className="mb-8">
+          <div className="flex items-center gap-2 mb-1">
+            <Trophy className="w-4 h-4 text-[#ffd700]" />
+            <span className="text-xs text-[#888FC0] uppercase tracking-wider">India top engineers</span>
           </div>
-          <h1 className="text-4xl font-bold mb-3">Leaderboard</h1>
-          <p className="text-[#AEB5E0] text-sm max-w-md mx-auto">
-            Ranked by cohort percentile — a composite of AI interview scores, GitHub activity, and consistency.
+          <h1 className="text-3xl font-bold mb-1">Leaderboard</h1>
+          <p className="text-sm text-[#888FC0]">
+            Ranked by verified proof scores — {skill ? `${skill} skill` : 'composite average'}{city ? ` in ${city}` : ' across India'}.
           </p>
+        </div>
+
+        {/* Filters */}
+        <div className="space-y-3 mb-8">
+          {/* Skill chips */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[10px] text-[#888FC0] uppercase tracking-wider">Skill</span>
+            <Link href={filterUrl(undefined, city)}
+              className={`text-xs px-2.5 py-1 rounded border transition-colors ${!skill ? 'border-[#2DE2C5]/40 bg-[#2DE2C5]/10 text-[#2DE2C5]' : 'border-white/[0.07] text-white/40 hover:text-white/70 hover:border-white/[0.15]'}`}>
+              All
+            </Link>
+            {SKILL_CHIPS.map((s) => (
+              <Link key={s} href={filterUrl(s, city)}
+                className={`text-xs px-2.5 py-1 rounded border transition-colors ${skill === s ? 'border-[#2DE2C5]/40 bg-[#2DE2C5]/10 text-[#2DE2C5]' : 'border-white/[0.07] text-white/40 hover:text-white/70 hover:border-white/[0.15]'}`}>
+                {s}
+              </Link>
+            ))}
+          </div>
+          {/* City chips */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[10px] text-[#888FC0] uppercase tracking-wider">City</span>
+            <Link href={filterUrl(skill, undefined)}
+              className={`text-xs px-2.5 py-1 rounded border transition-colors ${!city ? 'border-[#3FC5F0]/40 bg-[#3FC5F0]/10 text-[#3FC5F0]' : 'border-white/[0.07] text-white/40 hover:text-white/70 hover:border-white/[0.15]'}`}>
+              All India
+            </Link>
+            {CITY_CHIPS.map((c) => (
+              <Link key={c} href={filterUrl(skill, c)}
+                className={`text-xs px-2.5 py-1 rounded border transition-colors ${city === c ? 'border-[#3FC5F0]/40 bg-[#3FC5F0]/10 text-[#3FC5F0]' : 'border-white/[0.07] text-white/40 hover:text-white/70 hover:border-white/[0.15]'}`}>
+                {c}
+              </Link>
+            ))}
+          </div>
         </div>
 
         {rows.length === 0 ? (
           <div className="text-center py-20 text-[#AEB5E0]">
             <Trophy className="w-12 h-12 mx-auto mb-4 opacity-30" />
-            <div className="font-medium mb-2">No data yet</div>
-            <p className="text-sm">Complete interviews to appear on the leaderboard.</p>
+            <div className="font-medium mb-2">No results</div>
+            <p className="text-sm">
+              {skill || city
+                ? 'No engineers match this filter yet — try a different combination.'
+                : 'Complete interviews to appear on the leaderboard.'}
+            </p>
           </div>
         ) : (
           <>
             {/* Podium */}
             {top3.length > 0 && (
               <div className="flex items-end justify-center gap-4 mb-10">
-                {/* 2nd */}
                 {top3[1] && (
                   <div className="flex flex-col items-center gap-2">
                     <Link href={`/p/${top3[1].username}`} className="flex flex-col items-center gap-1.5 group">
@@ -137,13 +238,13 @@ export default async function LeaderboardPage() {
                         </div>
                       )}
                       <span className="text-sm font-medium group-hover:text-white transition-colors">{top3[1].name.split(' ')[0]}</span>
+                      <span className="font-mono text-xs text-[#c0c0c0]">{top3[1].score}</span>
                     </Link>
                     <div className="w-20 h-20 bg-[#c0c0c0]/10 border border-[#c0c0c0]/20 rounded-t-xl flex items-end justify-center pb-2">
                       <span className="text-2xl font-bold text-[#c0c0c0]">2</span>
                     </div>
                   </div>
                 )}
-                {/* 1st */}
                 {top3[0] && (
                   <div className="flex flex-col items-center gap-2">
                     <Trophy className="w-5 h-5 text-[#ffd700] mb-1" />
@@ -157,13 +258,13 @@ export default async function LeaderboardPage() {
                         </div>
                       )}
                       <span className="text-sm font-semibold group-hover:text-white transition-colors">{top3[0].name.split(' ')[0]}</span>
+                      <span className="font-mono text-xs text-[#ffd700]">{top3[0].score}</span>
                     </Link>
                     <div className="w-20 h-28 bg-[#ffd700]/10 border border-[#ffd700]/20 rounded-t-xl flex items-end justify-center pb-2">
                       <span className="text-2xl font-bold text-[#ffd700]">1</span>
                     </div>
                   </div>
                 )}
-                {/* 3rd */}
                 {top3[2] && (
                   <div className="flex flex-col items-center gap-2">
                     <Link href={`/p/${top3[2].username}`} className="flex flex-col items-center gap-1.5 group">
@@ -176,6 +277,7 @@ export default async function LeaderboardPage() {
                         </div>
                       )}
                       <span className="text-sm font-medium group-hover:text-white transition-colors">{top3[2].name.split(' ')[0]}</span>
+                      <span className="font-mono text-xs text-[#cd7f32]">{top3[2].score}</span>
                     </Link>
                     <div className="w-20 h-14 bg-[#cd7f32]/10 border border-[#cd7f32]/20 rounded-t-xl flex items-end justify-center pb-2">
                       <span className="text-2xl font-bold text-[#cd7f32]">3</span>
@@ -187,10 +289,10 @@ export default async function LeaderboardPage() {
 
             {/* Table */}
             <div className="rounded-2xl border border-white/[0.06] overflow-hidden">
-              <div className="grid grid-cols-[40px_1fr_120px_80px_100px] gap-4 px-5 py-3 bg-[#080A18] border-b border-white/[0.04] text-[10px] text-[#888FC0] uppercase tracking-wider font-semibold">
+              <div className="hidden sm:grid grid-cols-[40px_1fr_100px_80px_100px] gap-4 px-5 py-3 bg-[#080A18] border-b border-white/[0.04] text-[10px] text-[#888FC0] uppercase tracking-wider font-semibold">
                 <div>#</div>
                 <div>Engineer</div>
-                <div>Top skill</div>
+                <div>Location</div>
                 <div>Score</div>
                 <div className="text-right">Percentile</div>
               </div>
@@ -199,7 +301,7 @@ export default async function LeaderboardPage() {
                 <Link
                   key={row.username}
                   href={`/p/${row.username}`}
-                  className="grid grid-cols-[40px_1fr_120px_80px_100px] gap-4 items-center px-5 py-3.5 border-b border-white/[0.04] last:border-0 bg-[#080A18] hover:bg-[#0d1117] transition-colors group"
+                  className="flex sm:grid sm:grid-cols-[40px_1fr_100px_80px_100px] gap-3 sm:gap-4 items-center px-4 sm:px-5 py-3.5 border-b border-white/[0.04] last:border-0 bg-[#080A18] hover:bg-[#0d1117] transition-colors group"
                 >
                   <div className="flex items-center justify-center">
                     <RankIcon rank={row.rank} />
@@ -214,22 +316,22 @@ export default async function LeaderboardPage() {
                       </div>
                     )}
                     <div className="min-w-0">
-                      <div className="text-sm font-medium truncate group-hover:text-[#2DE2C5] transition-colors">{row.name}</div>
-                      {row.targetRole && (
-                        <div className="text-[10px] text-[#888FC0] truncate">{row.targetRole}</div>
-                      )}
+                      <div className="text-sm font-medium truncate group-hover:text-[#2DE2C5] transition-colors flex items-center gap-1.5">
+                        {row.name}
+                        {row.vouchedBadge && <Shield className="w-3 h-3 text-[#8B7CF8] shrink-0" />}
+                      </div>
                     </div>
                   </div>
-                  <div className="text-xs text-[#AEB5E0] truncate">{row.topSkill || '—'}</div>
-                  <div className="text-sm font-mono font-bold" style={{
-                    color: row.topScore >= 80 ? '#2DE2C5' : row.topScore >= 60 ? '#8B7CF8' : '#f59e0b'
-                  }}>
-                    {row.topScore || '—'}
+                  <div className="hidden sm:block text-xs text-[#888FC0] truncate">{row.location || '—'}</div>
+                  <div className="font-mono text-sm font-bold text-[#2DE2C5] ml-auto sm:ml-0">
+                    {row.score || '—'}
                   </div>
-                  <div className="text-right">
-                    <Badge className="text-[10px] px-1.5 h-5 bg-[#2DE2C5]/10 text-[#2DE2C5] border-[#2DE2C5]/20">
-                      top {100 - row.cohortPercentile}%
-                    </Badge>
+                  <div className="hidden sm:block text-right">
+                    {row.cohortPercentile > 0 ? (
+                      <Badge className="text-[10px] px-1.5 h-5 bg-[#2DE2C5]/10 text-[#2DE2C5] border-[#2DE2C5]/20">
+                        top {100 - row.cohortPercentile}%
+                      </Badge>
+                    ) : <span className="text-[#888FC0] text-xs">—</span>}
                   </div>
                 </Link>
               ))}

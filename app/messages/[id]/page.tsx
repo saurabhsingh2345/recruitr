@@ -506,14 +506,21 @@ export default function ThreadPage() {
           const isSystem = ['schedule_invite', 'schedule_confirmed', 'schedule_declined', 'outcome'].includes(msg.type)
 
           if (isSystem) {
+            const isMultiLine = msg.type === 'schedule_invite'
             return (
-              <div key={msg._id} className="flex justify-center">
-                <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-[#11142a] border border-[#1A1E3A] text-xs text-[#AEB5E0] max-w-md text-center">
-                  {msg.type === 'schedule_invite' && <Clock className="w-3.5 h-3.5 text-[#f59e0b] shrink-0" />}
-                  {msg.type === 'schedule_confirmed' && <CheckCircle2 className="w-3.5 h-3.5 text-[#2DE2C5] shrink-0" />}
-                  {msg.type === 'schedule_declined' && <XCircle className="w-3.5 h-3.5 text-[#f43f5e] shrink-0" />}
-                  <span className="whitespace-pre-wrap">{msg.content}</span>
-                </div>
+              <div key={msg._id} className="flex justify-center my-1">
+                {isMultiLine ? (
+                  <div className="flex gap-2.5 px-4 py-3 rounded-2xl bg-[#11142a] border border-[#f59e0b]/20 text-xs text-[#AEB5E0] max-w-sm w-full">
+                    <Clock className="w-3.5 h-3.5 text-[#f59e0b] shrink-0 mt-0.5" />
+                    <span className="whitespace-pre-wrap leading-relaxed">{msg.content}</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#11142a] border border-[#1A1E3A] text-xs text-[#AEB5E0]">
+                    {msg.type === 'schedule_confirmed' && <CheckCircle2 className="w-3.5 h-3.5 text-[#2DE2C5] shrink-0" />}
+                    {msg.type === 'schedule_declined' && <XCircle className="w-3.5 h-3.5 text-[#f43f5e] shrink-0" />}
+                    <span>{msg.content}</span>
+                  </div>
+                )}
               </div>
             )
           }

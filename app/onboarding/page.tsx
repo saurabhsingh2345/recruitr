@@ -30,7 +30,7 @@ function OnboardingPageInner() {
   const [isDragging, setIsDragging] = useState(false)
   const refSentRef = useRef(false)
 
-  // Persist proof-page referrer to localStorage before GitHub OAuth redirect
+  // Persist proof-page referrer and referral code to localStorage before GitHub OAuth redirect
   useEffect(() => {
     const ref = searchParams.get('ref')
     const skill = searchParams.get('skill')
@@ -40,14 +40,19 @@ function OnboardingPageInner() {
       localStorage.setItem('signup_skill', skill)
       localStorage.setItem('signup_from', from || '')
     }
+    // Store referral code if present (e.g. ?ref=ABC12345 without skill param)
+    if (ref && ref !== 'proof' && ref.length === 8) {
+      localStorage.setItem('referral_code', ref)
+    }
   }, [searchParams])
 
-  // After OAuth returns, send referrer to API once
+  // After OAuth returns, send referrer + referral code to API once
   useEffect(() => {
     if (status !== 'authenticated' || refSentRef.current) return
+    refSentRef.current = true
+
     const ref = localStorage.getItem('signup_ref')
     if (ref) {
-      refSentRef.current = true
       fetch('/api/me', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -60,6 +65,17 @@ function OnboardingPageInner() {
         localStorage.removeItem('signup_ref')
         localStorage.removeItem('signup_skill')
         localStorage.removeItem('signup_from')
+      }).catch(() => {})
+    }
+
+    const referralCode = localStorage.getItem('referral_code')
+    if (referralCode) {
+      fetch('/api/referral', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: referralCode }),
+      }).then(() => {
+        localStorage.removeItem('referral_code')
       }).catch(() => {})
     }
   }, [status])

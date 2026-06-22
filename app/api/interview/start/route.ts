@@ -7,6 +7,7 @@ import { User } from '@/lib/models/User'
 import { getModel, INTERVIEW_SYSTEM_PROMPT } from '@/lib/groq'
 import { fetchGitHubRepos, reposToSummary } from '@/lib/github'
 import { generateText } from 'ai'
+import { getCandidateMemory } from '@/lib/memory'
 
 const FORMAT_PROMPTS: Record<string, string> = {
   coding:
@@ -27,14 +28,17 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { format, targetSkill } = await req.json()
+    const { format, targetSkill, companyJD } = await req.json()
     await connectDB()
 
     const user = await User.findById(session.user.id)
     const profile = await Profile.findOne({ userId: user?._id })
 
-    // Get fresh GitHub repos for personalization
-    const repos = user?.username ? await fetchGitHubRepos(user.username) : []
+    // Get fresh GitHub repos for personalization + candidate memory
+    const [repos, memoryContext] = await Promise.all([
+      user?.username ? fetchGitHubRepos(user.username) : Promise.resolve([]),
+      getCandidateMemory(session.user.id),
+    ])
     const repoSummary = repos.length > 0 ? reposToSummary(repos) : 'No GitHub data available.'
 
     // Skill scores from profile
@@ -43,6 +47,16 @@ export async function POST(req: NextRequest) {
         ?.slice(0, 6)
         .map((s: { name: string; proofScore: number }) => `- ${s.name}: ${s.proofScore}/100`)
         .join('\n') || 'No skill scores yet.'
+
+    // Company mode: analyze JD if provided
+    let companyModeData: { jdSnippet: string; style: string; company: string } | undefined
+    let companyAddition = ''
+    if (companyJD && typeof companyJD === 'string' && companyJD.trim().length > 20) {
+      const { analyzeCompanyStyle } = await import('@/lib/company-mode')
+      const style = await analyzeCompanyStyle(companyJD)
+      companyModeData = style
+      companyAddition = `\n\n[COMPANY MODE]\n${style.style}`
+    }
 
     const prompt = `
 ${FORMAT_PROMPTS[format] || FORMAT_PROMPTS.coding}
@@ -58,7 +72,7 @@ ${repoSummary}
 
 Skill proof scores:
 ${skillContext}
-
+${memoryContext}${companyAddition}
 Start the interview now with your opening question. Be specific to their actual projects/skills.`
 
     const { text: openingQuestion } = await generateText({
@@ -82,6 +96,8 @@ Start the interview now with your opening question. Be specific to their actual 
         },
       ],
       githubContext: repoSummary.slice(0, 2000),
+      memoryContext,
+      ...(companyModeData ? { companyMode: companyModeData } : {}),
     })
 
     return NextResponse.json({

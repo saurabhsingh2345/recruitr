@@ -38,11 +38,16 @@ export async function POST(
     }
     app.status = 'interview_scheduled'
 
+    const typeLabel: Record<string, string> = {
+      video: 'Video call',
+      phone: 'Phone call',
+      in_person: 'In person',
+    }
     const content = [
-      `📅 Interview proposed: ${date} at ${time} (${timezone || 'Asia/Kolkata'})`,
-      `Type: ${type || 'Video call'}`,
-      meetLink ? `Meet link: ${meetLink}` : '',
-      notes ? `Notes: ${notes}` : '',
+      `📅 ${date} at ${time} IST`,
+      `${typeLabel[type] || type}`,
+      meetLink ? `🔗 ${meetLink}` : '',
+      notes ? `📝 ${notes}` : '',
     ]
       .filter(Boolean)
       .join('\n')

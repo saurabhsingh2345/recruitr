@@ -6,6 +6,7 @@ import { connectDB } from './mongodb'
 import { User } from './models/User'
 import { Profile } from './models/Profile'
 import { authConfig } from './auth.config'
+import { ensureReferralCode } from './referrals'
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
@@ -71,6 +72,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             userId: dbUser._id,
             githubUsername: gp.login,
           })
+          // Generate referral code for new users
+          await ensureReferralCode(dbUser._id.toString()).catch(() => {})
         }
 
         return true
@@ -95,7 +98,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             session.user.role = dbUser.role
             session.user.githubId = dbUser.githubId || ''
           }
-        } catch {}
+        } catch (err) {
+          console.error('Session callback DB error:', err)
+        }
       }
       return session
     },

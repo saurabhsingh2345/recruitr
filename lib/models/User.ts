@@ -1,4 +1,4 @@
-import mongoose, { Schema, Document } from 'mongoose'
+import mongoose, { Schema, Document, Types } from 'mongoose'
 
 export interface IConnection {
   source: string                 // github | linkedin | stackoverflow | devto | hackernews | twitter | gitlab
@@ -46,6 +46,14 @@ export interface IUser extends Document {
   signupFrom: string      // username they came from (if proof_page)
   passwordResetToken: string
   passwordResetExpiry: Date | null
+  // Referral / vouching
+  referralCode: string
+  referredBy: Types.ObjectId | null
+  vouchedCount: number
+  isVouched: boolean
+  // Atlas weekly brief
+  emailBriefEnabled: boolean
+  lastBriefSentAt: Date | null
   subscriptionTier: 'free' | 'pro'
   stripeCustomerId: string
   stripeSubscriptionId: string
@@ -98,6 +106,12 @@ const UserSchema = new Schema<IUser>({
   signupFrom: { type: String, default: '' },
   passwordResetToken: { type: String, default: '' },
   passwordResetExpiry: { type: Date, default: null },
+  referralCode: { type: String, default: '', index: true },
+  referredBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
+  vouchedCount: { type: Number, default: 0 },
+  isVouched: { type: Boolean, default: false },
+  emailBriefEnabled: { type: Boolean, default: true },
+  lastBriefSentAt: { type: Date, default: null },
   subscriptionTier: { type: String, enum: ['free', 'pro'], default: 'free' },
   stripeCustomerId: { type: String, default: '' },
   stripeSubscriptionId: { type: String, default: '' },

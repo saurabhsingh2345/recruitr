@@ -13,15 +13,18 @@ import {
   Flame,
   Briefcase,
   GraduationCap,
+  Loader2,
 } from 'lucide-react'
 import { LineChart, Line, ResponsiveContainer } from 'recharts'
 import { CandidateNav } from '@/components/CandidateNav'
+import { OnboardingModal } from '@/components/onboarding/OnboardingModal'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
-import { getScoreColor, getScoreLabel } from '@/lib/scoring'
+import { getScoreColor, getScoreLabel, getConfidenceBand } from '@/lib/scoring'
 import { SkillConstellation } from '@/components/SkillConstellation'
+import { CompanyModeToggle } from '@/components/interview/CompanyModeToggle'
 
 interface SkillScore {
   name: string
@@ -48,9 +51,11 @@ interface ProfileData {
     cohortPercentile: number
     yearsOfExperience: number
     bio: string
-    projects: Array<{ repoName: string; description: string; techStack: string[]; githubUrl: string }>
+    projects: Array<{ repoName: string; description: string; techStack: string[]; githubUrl: string; language?: string }>
     experiences: Array<{ title: string; company: string; duration: string }>
     educations: Array<{ institution: string; degree: string }>
+    onboardingComplete?: boolean
+    onboardingStep?: number
   }
 }
 
@@ -71,9 +76,10 @@ const FORMAT_ICONS: Record<string, string> = {
 }
 
 /** Compact skill legend row paired with the constellation */
-function SkillLegendRow({ name, score, scoreHistory }: { name: string; score: number; scoreHistory?: { score: number }[] }) {
+function SkillLegendRow({ name, score, evidence, scoreHistory }: { name: string; score: number; evidence?: string[]; scoreHistory?: { score: number }[] }) {
   const color = getScoreColor(score)
   const sparkData = scoreHistory && scoreHistory.length >= 2 ? scoreHistory.slice(-8) : null
+  const band = scoreHistory && scoreHistory.length >= 3 ? getConfidenceBand(scoreHistory) : null
   return (
     <div className="flex items-center gap-3">
       <span className="node-dot w-2 h-2 shrink-0" style={{ background: color, boxShadow: `0 0 8px 1px ${color}99` }} />
@@ -92,13 +98,24 @@ function SkillLegendRow({ name, score, scoreHistory }: { name: string; score: nu
       ) : (
         <div className="w-12 shrink-0" />
       )}
-      <span className="text-[11px] font-mono w-7 text-right" style={{ color }}>{score}</span>
-      <Badge
-        className="text-[9px] px-1.5 py-0 h-4 hidden lg:inline-flex"
-        style={{ backgroundColor: color + '20', color, borderColor: color + '30' }}
-      >
-        {getScoreLabel(score)}
-      </Badge>
+      <div className="w-10 text-right shrink-0">
+        <div className="text-[11px] font-mono leading-none" style={{ color }}>{score}</div>
+        {band && band.sigma > 0 && (
+          <div className="text-[9px] font-mono text-white/20 leading-none mt-0.5">±{band.sigma}</div>
+        )}
+      </div>
+      {evidence && evidence.length > 0 ? (
+        <span className="text-[9px] text-white/25 w-14 text-right hidden lg:block">
+          {evidence.length} {evidence.length === 1 ? 'src' : 'sources'}
+        </span>
+      ) : (
+        <Badge
+          className="text-[9px] px-1.5 py-0 h-4 hidden lg:inline-flex"
+          style={{ backgroundColor: color + '20', color, borderColor: color + '30' }}
+        >
+          {getScoreLabel(score)}
+        </Badge>
+      )}
     </div>
   )
 }
@@ -119,6 +136,7 @@ export default function DashboardPage() {
   const [selectedFormat, setSelectedFormat] = useState('')
   const [selectedSkill, setSelectedSkill] = useState('')
   const [unreadMessages, setUnreadMessages] = useState(0)
+  const [companyJD, setCompanyJD] = useState<string | null>(null)
 
   useEffect(() => {
     async function load() {
@@ -160,7 +178,7 @@ export default function DashboardPage() {
       const res = await fetch('/api/interview/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ format, targetSkill: skill || data?.profile?.targetRole || 'General' }),
+        body: JSON.stringify({ format, targetSkill: skill || data?.profile?.targetRole || 'General', ...(companyJD ? { companyJD } : {}) }),
       })
       if (res.ok) {
         const { sessionId } = await res.json()
@@ -200,6 +218,15 @@ export default function DashboardPage() {
   const streak = data?.user?.currentStreak ?? 0
   const openToWork = data?.user?.openToWork ?? true
 
+  // Onboarding: show modal for new users with no skills, or returning from their first session
+  const showOnboarding = !loading && data !== null && data.profile.onboardingComplete !== true
+  const isReturningFromSession =
+    showOnboarding && (data?.profile?.onboardingStep ?? 0) >= 2 && allSkills.length > 0
+  const topRepo = data?.profile?.projects?.[0]
+    ? { name: data.profile.projects[0].repoName, language: data.profile.projects[0].language }
+    : null
+  const topLanguage = topRepo?.language || allSkills[0]?.name || null
+
   return (
     <div className="h-screen flex overflow-hidden">
       <CandidateNav
@@ -231,7 +258,7 @@ export default function DashboardPage() {
 
       <main className="flex-1 overflow-y-auto">
         {/* Top bar */}
-        <div className="sticky top-0 z-10 border-b border-white/[0.05] bg-[#050508]/95 backdrop-blur px-8 h-[56px] flex items-center justify-between">
+        <div className="sticky top-0 z-10 border-b border-white/[0.05] bg-[#050508]/95 backdrop-blur px-4 sm:px-8 h-[56px] flex items-center justify-between">
           <div className="text-sm text-white/35">
             {loading ? (
               <Skeleton className="h-4 w-40 bg-white/[0.04]" />
@@ -246,74 +273,94 @@ export default function DashboardPage() {
                 Public profile
               </Button>
             </Link>
-            <Button
-              size="sm"
-              className="btn-supernova font-semibold gap-1.5 h-8 px-4 text-xs"
-              onClick={() => startInterview('coding', topSkill?.name || 'General')}
-              disabled={startingInterview}
-            >
-              <Play className="w-3 h-3" />
-              Start interview
-            </Button>
           </div>
         </div>
 
-        <div className="max-w-5xl mx-auto px-8 py-8 space-y-10">
+        <div className="max-w-5xl mx-auto px-4 sm:px-8 py-6 sm:py-8 space-y-8 sm:space-y-10">
 
-          {/* Identity + stats header */}
-          {loading ? (
-            <Skeleton className="h-24 w-full rounded-xl bg-white/[0.03]" />
-          ) : (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="flex flex-col lg:flex-row lg:items-start gap-8"
-            >
-              {/* Identity */}
-              <div className="flex items-center gap-4 flex-1 min-w-0">
-                <div className="relative shrink-0">
-                  {data?.user?.avatarUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={data.user.avatarUrl} alt={data.user.name} className="w-14 h-14 rounded-full border border-white/[0.08]" />
-                  ) : (
-                    <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[#2DE2C5] to-[#8B7CF8] flex items-center justify-center text-[#05060F] font-bold text-xl">
-                      {data?.user?.name?.[0]?.toUpperCase() || 'U'}
+          {/* Hero: rank card + single CTA */}
+          <section className="space-y-3">
+            {loading ? (
+              <Skeleton className="h-28 w-full rounded-xl bg-white/[0.03]" />
+            ) : (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="border border-white/[0.06] rounded-xl bg-[#0a0c1a] p-6"
+              >
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  {/* Identity */}
+                  <div className="flex items-center gap-4 min-w-0">
+                    <div className="relative shrink-0">
+                      {data?.user?.avatarUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={data.user.avatarUrl} alt={data.user.name} className="w-12 h-12 rounded-full border border-white/[0.08]" />
+                      ) : (
+                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#2DE2C5] to-[#8B7CF8] flex items-center justify-center text-[#05060F] font-bold text-lg">
+                          {data?.user?.name?.[0]?.toUpperCase() || 'U'}
+                        </div>
+                      )}
+                      <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-[#0a0c1a] ${data?.user?.openToWork ? 'bg-[#2DE2C5]' : 'bg-white/20'}`} />
                     </div>
-                  )}
-                  <span className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-[#050508] ${data?.user?.openToWork ? 'bg-[#2DE2C5]' : 'bg-white/20'}`} />
-                </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <h1 className="text-xl font-bold tracking-tight">{data?.user?.name || 'Engineer'}</h1>
-                    {data?.user?.openToWork && (
-                      <span className="text-[9px] font-semibold bg-[#2DE2C5]/10 text-[#2DE2C5] border border-[#2DE2C5]/20 px-1.5 py-0.5 rounded">OPEN</span>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <h1 className="text-base font-semibold">{data?.user?.name || 'Engineer'}</h1>
+                        {data?.user?.openToWork && (
+                          <span className="text-[9px] font-semibold bg-[#2DE2C5]/10 text-[#2DE2C5] border border-[#2DE2C5]/20 px-1.5 py-0.5 rounded">OPEN</span>
+                        )}
+                      </div>
+                      <div className="text-xs text-white/35">
+                        {data?.profile?.targetRole || 'Engineer'}
+                        {data?.user?.username && <span className="text-white/20"> · @{data.user.username}</span>}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Rank + share */}
+                  <div className="flex items-center gap-4 sm:shrink-0">
+                    {cohortPct > 0 && (
+                      <div className="text-right">
+                        <div className="text-[10px] text-white/25 uppercase tracking-wider mb-0.5">Your rank</div>
+                        <div className="font-mono text-3xl font-medium leading-none">
+                          Top {100 - cohortPct}%
+                        </div>
+                        <div className="text-[10px] text-white/30 mt-1">
+                          {currentStreak > 0 ? `${currentStreak}d streak · ` : ''}
+                          {completedSessions.length} sessions
+                        </div>
+                      </div>
+                    )}
+                    {data?.user?.username && (
+                      <Link href={`/p/${data.user.username}`} target="_blank">
+                        <button className="text-xs border border-white/[0.08] px-3 py-1.5 rounded-lg hover:bg-white/[0.04] transition-colors text-white/40">
+                          Share profile
+                        </button>
+                      </Link>
                     )}
                   </div>
-                  <div className="text-sm text-white/40">
-                    {data?.profile?.targetRole || 'Engineer'}
-                    {data?.user?.username && <span className="text-white/20"> · @{data.user.username}</span>}
-                  </div>
                 </div>
-              </div>
+              </motion.div>
+            )}
 
-              {/* Stats */}
-              <div className="flex items-stretch gap-px rounded-xl overflow-hidden border border-white/[0.06] shrink-0">
-                {[
-                  { label: 'Avg Score', value: avgScore || null, suffix: '', color: avgScore ? getScoreColor(avgScore) : undefined },
-                  { label: 'Ranking', value: cohortPct > 0 ? `Top ${100 - cohortPct}%` : null, suffix: '', color: '#3FC5F0' },
-                  { label: 'Sessions', value: completedSessions.length || null, suffix: '', color: undefined },
-                  { label: 'Streak', value: currentStreak > 0 ? `${currentStreak}d` : null, suffix: '', color: '#8B7CF8' },
-                ].map((stat, i, arr) => (
-                  <div key={stat.label} className={`px-5 py-4 bg-[#0a0c1a] flex flex-col items-center justify-center min-w-[80px] ${i < arr.length - 1 ? 'border-r border-white/[0.06]' : ''}`}>
-                    <div className="text-[10px] uppercase tracking-wider text-white/25 mb-1.5">{stat.label}</div>
-                    <div className="text-xl font-bold font-mono" style={{ color: stat.value ? (stat.color || 'white') : 'rgba(255,255,255,0.15)' }}>
-                      {stat.value ?? '—'}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </motion.div>
-          )}
+            {/* Single primary CTA */}
+            {!loading && (
+              <Button
+                onClick={() => startInterview(topSkill ? 'coding' : 'gap', topSkill?.name || 'General')}
+                disabled={startingInterview}
+                className="w-full btn-supernova font-semibold h-11 text-[#05060F]"
+              >
+                {startingInterview ? (
+                  <><Loader2 className="w-4 h-4 animate-spin mr-2" />Starting…</>
+                ) : (
+                  <>
+                    <Play className="w-3.5 h-3.5 mr-2" />
+                    Start {topSkill ? 'coding' : 'gap'} session
+                    {topSkill && <span className="ml-1.5 opacity-75 text-xs">· {topSkill.name}</span>}
+                  </>
+                )}
+              </Button>
+            )}
+          </section>
 
           {/* Two-column layout: skills + sessions */}
           <div className="grid lg:grid-cols-[1fr_380px] gap-6">
@@ -350,7 +397,7 @@ export default function DashboardPage() {
                   </div>
                   <div className="space-y-2.5 pt-2 border-t border-white/[0.04]">
                     {skills.map((skill) => (
-                      <SkillLegendRow key={skill.name} name={skill.name} score={skill.proofScore} scoreHistory={skill.scoreHistory} />
+                      <SkillLegendRow key={skill.name} name={skill.name} score={skill.proofScore} evidence={skill.evidence} scoreHistory={skill.scoreHistory} />
                     ))}
                   </div>
                 </div>
@@ -362,6 +409,7 @@ export default function DashboardPage() {
               {/* Interview types */}
               <div className="space-y-2">
                 <h2 className="text-[11px] font-semibold tracking-widest uppercase text-white/30">Start a session</h2>
+                <CompanyModeToggle onJDChange={setCompanyJD} />
                 <div className="grid grid-cols-2 gap-2">
                   {INTERVIEW_TYPES.map((type) => (
                     <button
@@ -383,6 +431,27 @@ export default function DashboardPage() {
                 </div>
               </div>
 
+              {/* Wrapped CTA — December or when sessions exist */}
+              {completedSessions.length >= 3 && (() => {
+                const now = new Date()
+                const currentYear = now.getFullYear()
+                const isDecember = now.getMonth() === 11
+                const wrappedYear = isDecember ? currentYear : currentYear - 1
+                return (
+                  <Link
+                    href={`/wrapped/${wrappedYear}`}
+                    className="flex items-center gap-3 px-4 py-3 rounded-xl border border-[#8B7CF8]/20 bg-[#8B7CF8]/[0.04] hover:bg-[#8B7CF8]/[0.08] transition-colors"
+                  >
+                    <span className="text-lg">🎁</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-medium text-[#8B7CF8]">{wrappedYear} Wrapped</div>
+                      <div className="text-[10px] text-white/30">See your year in interviews</div>
+                    </div>
+                    <ChevronRight className="w-3.5 h-3.5 text-white/20 shrink-0" />
+                  </Link>
+                )
+              })()}
+
               {/* Recent sessions */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
@@ -400,31 +469,37 @@ export default function DashboardPage() {
                   </div>
                 ) : (
                   <div className="space-y-1">
-                    {sessions.slice(0, 6).map((session) => (
-                      <div key={session._id} className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-white/[0.02] transition-colors group">
-                        <div className="text-base w-6 text-center shrink-0">{FORMAT_ICONS[session.format] || '📋'}</div>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-xs font-medium truncate">{FORMAT_LABELS[session.format]}</div>
-                          <div className="text-[10px] text-white/25 truncate">{session.targetSkill}</div>
-                        </div>
-                        {session.status === 'completed' && session.scores?.overall ? (
-                          <span className="text-xs font-mono font-bold shrink-0" style={{ color: getScoreColor(session.scores.overall) }}>
-                            {session.scores.overall}
-                          </span>
-                        ) : (
-                          <span className={`text-[9px] px-1.5 py-0.5 rounded shrink-0 ${
-                            session.status === 'in_progress' ? 'bg-[#8B7CF8]/15 text-[#8B7CF8]' : 'text-white/20'
-                          }`}>
-                            {session.status.replace('_', ' ')}
-                          </span>
-                        )}
-                        {session.status === 'completed' && (
-                          <Link href={`/interview/report/${session._id}`}>
+                    {sessions.slice(0, 6).map((session) => {
+                      const href = session.status === 'completed'
+                        ? `/interview/report/${session._id}`
+                        : session.status === 'in_progress'
+                        ? `/interview/${session._id}`
+                        : null
+                      const row = (
+                        <div key={session._id} className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-white/[0.02] transition-colors group cursor-pointer">
+                          <div className="text-base w-6 text-center shrink-0">{FORMAT_ICONS[session.format] || '📋'}</div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-xs font-medium truncate">{FORMAT_LABELS[session.format]}</div>
+                            <div className="text-[10px] text-white/25 truncate">{session.targetSkill}</div>
+                          </div>
+                          {session.status === 'completed' && session.scores?.overall ? (
+                            <span className="text-xs font-mono font-bold shrink-0" style={{ color: getScoreColor(session.scores.overall) }}>
+                              {session.scores.overall}
+                            </span>
+                          ) : (
+                            <span className={`text-[9px] px-1.5 py-0.5 rounded shrink-0 ${
+                              session.status === 'in_progress' ? 'bg-[#8B7CF8]/15 text-[#8B7CF8]' : 'text-white/20'
+                            }`}>
+                              {session.status === 'in_progress' ? 'resume' : session.status.replace('_', ' ')}
+                            </span>
+                          )}
+                          {href && (
                             <ChevronRight className="w-3.5 h-3.5 text-white/20 group-hover:text-white/50 transition-colors" />
-                          </Link>
-                        )}
-                      </div>
-                    ))}
+                          )}
+                        </div>
+                      )
+                      return href ? <Link key={session._id} href={href}>{row}</Link> : row
+                    })}
                   </div>
                 )}
               </div>
@@ -517,6 +592,17 @@ export default function DashboardPage() {
           )}
         </div>
       </main>
+
+      {/* Onboarding modal — shown for new users and returning-from-first-session users */}
+      {showOnboarding && data && (
+        <OnboardingModal
+          username={data.user.username}
+          topRepo={topRepo}
+          topLanguage={topLanguage}
+          parsedSkills={allSkills.map(s => ({ name: s.name, proofScore: s.proofScore }))}
+          initialStep={isReturningFromSession ? 2 : 0}
+        />
+      )}
     </div>
   )
 }

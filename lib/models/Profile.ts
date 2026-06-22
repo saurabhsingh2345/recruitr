@@ -74,9 +74,13 @@ export interface IProfile extends Document {
   location: string
   bio: string
   isPublic: boolean
+  vouchedBadge: boolean
+  vouchedBy: Types.ObjectId | null
   portfolioProjects: IPortfolioProject[]
   portfolioTheme: 'minimal' | 'terminal' | 'magazine' | 'bento'
   portfolioCustomization: IPortfolioCustomization
+  onboardingComplete: boolean
+  onboardingStep: number   // 0=not started, 1=github, 2=session_started, 3=done
   updatedAt: Date
 }
 
@@ -129,6 +133,8 @@ const ProfileSchema = new Schema<IProfile>({
   location: { type: String, default: '' },
   bio: { type: String, default: '' },
   isPublic: { type: Boolean, default: true },
+  vouchedBadge: { type: Boolean, default: false },
+  vouchedBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
   portfolioProjects: [
     {
       title: { type: String, default: '' },
@@ -156,6 +162,8 @@ const ProfileSchema = new Schema<IProfile>({
     showProjects: { type: Boolean, default: true },
     showEducation: { type: Boolean, default: true },
   },
+  onboardingComplete: { type: Boolean, default: false },
+  onboardingStep: { type: Number, default: 0 },
   updatedAt: { type: Date, default: Date.now },
 })
 

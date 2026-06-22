@@ -1,0 +1,16 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/weekly-brief",
+      "schedule": "0 8 * * 1"
+    },
+    {
+      "path": "/api/cron/leaderboard-notify",
+      "schedule": "0 9 * * 1"
+    },
+    {
+      "path": "/api/cron/market-feed",
+      "schedule": "0 2 * * *"
+    }
+  ]
+}

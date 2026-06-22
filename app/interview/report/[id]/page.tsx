@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { getScoreColor, getScoreLabel } from '@/lib/scoring'
 import { toast } from 'sonner'
+import { FormattedMessage } from '@/components/interview/FormattedMessage'
 
 interface Message {
   role: 'ai' | 'user'
@@ -40,7 +41,8 @@ interface Report {
     strengths: string[]
     gaps: string[]
     studyRecommendations: string[]
-    idealAnswers: Record<string, string>
+    idealAnswers: Array<{ question: string; answer: string }>
+    aiVerdict?: string
     generatedAt: string
   }
   completedAt: string
@@ -313,9 +315,9 @@ export default function InterviewReportPage() {
             strengths: ['Strong understanding of React reconciliation', 'Clear communication of trade-offs', 'Good instinct for edge cases'],
             gaps: ['Could deepen knowledge of React memory model', 'Missed opportunity to discuss context propagation'],
             studyRecommendations: ['Study the React reconciler deep-dive', 'Practice context.useMemo patterns', 'Read the concurrent rendering RFC'],
-            idealAnswers: {
-              'What is the React reconciliation algorithm?': 'React uses a fiber architecture to perform diffing in O(n) time by making three heuristic assumptions: elements of different types produce different trees; the developer can hint at stability with keys; and children diffed by key are stable. The fiber represents a unit of work that can be paused and resumed.',
-            },
+            idealAnswers: [
+              { question: 'What is the React reconciliation algorithm?', answer: 'React uses a fiber architecture to perform diffing in O(n) time by making three heuristic assumptions: elements of different types produce different trees; the developer can hint at stability with keys; and children diffed by key are stable. The fiber represents a unit of work that can be paused and resumed.' },
+            ],
             generatedAt: new Date().toISOString(),
           },
           completedAt: new Date().toISOString(),
@@ -353,7 +355,7 @@ export default function InterviewReportPage() {
   const scoreColor = getScoreColor(overall)
   const breakdown = Object.entries(report.scores?.breakdown || {})
   const messages = report.messages || []
-  const idealAnswers = Object.entries(report.insightReport?.idealAnswers || {})
+  const idealAnswers = report.insightReport?.idealAnswers || []
   const isFirstSessionBelow60 = report.scoreUpdate?.isFirstScore && report.scoreUpdate?.after < 60
 
   return (
@@ -542,7 +544,7 @@ export default function InterviewReportPage() {
                   </div>
                   <p className="text-xs text-foreground/35 mb-4">Model answers for the questions asked in this session</p>
                   <div className="space-y-5">
-                    {idealAnswers.map(([question, answer], i) => (
+                    {idealAnswers.map(({ question, answer }, i) => (
                       <div key={i} className="space-y-2">
                         <div className="flex items-start gap-2">
                           <Badge className="bg-[#8B7CF8]/10 text-[#8B7CF8] border-[#8B7CF8]/20 text-[10px] shrink-0 mt-0.5">Q{i + 1}</Badge>
@@ -626,7 +628,7 @@ export default function InterviewReportPage() {
                             : 'bg-[#8B7CF8]/10 rounded-tr-sm border border-[#8B7CF8]/20'
                         }`}>
                           <div className="text-[9px] font-medium mb-1 opacity-40">{isAI ? 'Interviewer' : 'You'}</div>
-                          {msg.content}
+                          <FormattedMessage content={msg.content} />
                         </div>
                       </div>
                     )
