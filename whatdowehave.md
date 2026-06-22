@@ -12,6 +12,10 @@ Intervue is a verified technical identity platform with an AI interview engine o
 
 ## What Is Shipped and Running
 
+### 0. GitHub Sync
+
+Candidates sync their GitHub profile by clicking "Sync repos" in Settings → Connections. The sync always fetches **live, uncached data** from the GitHub API (`cache: 'no-store'`) — new repos pushed minutes ago are picked up immediately. Up to 50 repositories are scanned (sorted by most recently updated), non-fork repos only. Languages, topics, repo complexity, and star counts feed directly into skill proof scores.
+
 ### 1. AI Interview Engine
 
 Candidates can start a technical interview in five formats: **coding, system design, project deep-dive, behavioural, and gap sessions** (targeted skill drills). Every session is personalized — the AI reads the candidate's actual GitHub repos at session start and asks questions grounded in real projects they've pushed.
@@ -45,7 +49,7 @@ The `/connections` page lets candidates register handles on each source. A sync 
 
 Each skill has evidence lines (human-readable citations like "Wrote 4 DEV.to articles on TypeScript — 210 reactions") that are stored and shown on the public profile and used by the agents.
 
-**Cohort percentile** is calculated across all candidates and surfaces on the leaderboard (top 50 by percentile, public).
+**Cohort ranking** is calculated across all verified candidates and shown on the dashboard as "Top X%" — for example, "Top 10%" means the candidate's average proof score beats 90% of the cohort. It recalculates on every profile sync and surfaces on the leaderboard (top 50 by percentile, public).
 
 ### 3. Public Profile, Shareable Badges, and Proof Pages
 
@@ -134,7 +138,19 @@ Pro tier adds:
 
 The webhook handler processes `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`, and `invoice.payment_failed` events. Subscription state (tier, status, period end) is stored on the User document.
 
-### 9. Infrastructure
+### 9. Resume Studio (Multi-Resume Library)
+
+Candidates can generate unlimited tailored resumes from a single page. The flow:
+
+1. **Enter a job title** (e.g. "Senior Backend Engineer", "SDE-2 at Stripe") — optionally paste the full JD for even tighter tailoring.
+2. **Generate** — the AI reads the candidate's verified Intervue skill scores, GitHub projects (with tech stacks and descriptions), work experience, education, and bio, then produces a complete ATS-optimized resume in ~5 seconds.
+3. **Auto-saved** — every generated resume is saved to the candidate's library with the job title as the name.
+4. **Library panel** — all saved resumes appear in the left panel with timestamps. Click any to load it back into the preview. Delete versions you no longer need.
+5. **Copy ATS text** — one click copies a clean plain-text version ready to paste into any ATS. PDF export is in roadmap.
+
+The resume generator only uses information from the candidate's actual verified profile — it cannot hallucinate work history or skills that aren't there.
+
+### 10. Infrastructure
 
 - **Next.js 16 App Router** — server components, streaming, edge routes.
 - **MongoDB Atlas + Mongoose** — main data store. Models: User, Profile, InterviewSession, Application, RoleSpec, Handshake, BadgeEvent.
@@ -153,6 +169,7 @@ The webhook handler processes `checkout.session.completed`, `customer.subscripti
 
 Telling you what isn't built is as important as what is.
 
+- **Resume PDF export** is not yet implemented — candidates can copy ATS plain text but not download a formatted PDF.
 - **No mobile app.** Web only.
 - **Twitter/X and GitLab** source parsers are scaffolded but blocked on OAuth app credentials — not implemented.
 - **Typesense** full-text search is in the plan but deferred; current search is MongoDB regex.

@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth'
 import { connectDB } from '@/lib/mongodb'
 import { Profile } from '@/lib/models/Profile'
 import { User } from '@/lib/models/User'
+import { SavedResume } from '@/lib/models/SavedResume'
 import { getModel } from '@/lib/groq'
 import { generateText } from 'ai'
 
@@ -13,10 +14,12 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { jobDescription, format = 'standard' } = await req.json()
+    const body = await req.json()
+    const jobTitle: string = body.jobTitle || ''
+    const jobDescription: string = body.jobDescription || ''
 
-    if (!jobDescription) {
-      return NextResponse.json({ error: 'Job description required' }, { status: 400 })
+    if (!jobTitle.trim()) {
+      return NextResponse.json({ error: 'Job title required' }, { status: 400 })
     }
 
     await connectDB()
@@ -24,56 +27,61 @@ export async function POST(req: NextRequest) {
     const user = await User.findById(session.user.id)
     const profile = await Profile.findOne({ userId: user?._id })
 
-    const skillsList = profile?.parsedSkills
-      ?.slice(0, 10)
-      .map((s: { name: string; proofScore: number }) => `${s.name} (${s.proofScore}/100)`)
-      .join(', ') || ''
+    const skillsList = (profile?.parsedSkills || [])
+      .slice(0, 12)
+      .map((s: { name: string; proofScore: number }) => `${s.name} (verified ${s.proofScore}/100)`)
+      .join(', ') || 'No skills on record yet'
 
-    const projectsList = profile?.projects
-      ?.slice(0, 3)
-      .map((p: { repoName: string; description: string; techStack?: string[] }) =>
-        `${p.repoName}: ${p.description} | ${p.techStack?.join(', ')}`)
+    const projectsList = (profile?.projects || [])
+      .slice(0, 5)
+      .map((p: { repoName: string; description: string; techStack?: string[]; stars?: number }) =>
+        `${p.repoName}: ${p.description || 'No description'}${p.techStack?.length ? ` | Tech: ${p.techStack.join(', ')}` : ''}${p.stars ? ` | ${p.stars}★` : ''}`)
+      .join('\n') || 'No projects on record'
+
+    const experienceList = (profile?.experiences || [])
+      .map((e: { title: string; company: string; duration: string }) =>
+        `${e.title} at ${e.company} (${e.duration})`)
       .join('\n') || ''
 
-    const prompt = `Generate a tailored resume for this job description. Return structured JSON only.
+    const educationList = (profile?.educations || [])
+      .map((e: { institution: string; degree: string }) => `${e.degree} — ${e.institution}`)
+      .join('\n') || ''
 
-JOB DESCRIPTION:
-${jobDescription.slice(0, 1500)}
+    const contextBlock = [
+      `Name: ${user?.name || 'Engineer'}`,
+      `Target Role: ${profile?.targetRole || 'Software Engineer'}`,
+      `Years of Experience: ${profile?.yearsOfExperience || 0}`,
+      `Location: ${profile?.location || 'India'}`,
+      `Bio: ${profile?.bio || ''}`,
+      `\nVerified Skills (proof scores from Intervue AI interviews + GitHub):\n${skillsList}`,
+      `\nGitHub Projects:\n${projectsList}`,
+      experienceList ? `\nWork Experience:\n${experienceList}` : '',
+      educationList ? `\nEducation:\n${educationList}` : '',
+      profile?.rawResumeText ? `\nResume Context (raw):\n${profile.rawResumeText.slice(0, 800)}` : '',
+    ].filter(Boolean).join('\n')
 
-CANDIDATE:
-Name: ${user?.name}
-Target Role: ${profile?.targetRole || 'Software Engineer'}
-Years of Experience: ${profile?.yearsOfExperience || 3}
-Top Skills: ${skillsList}
-Key Projects:
-${projectsList}
+    const prompt = `You are a senior technical recruiter and resume writer. Generate a tailored, ATS-optimized resume for the role below. Use ONLY information from the candidate's actual profile — do NOT invent experience, companies, or achievements.
 
-Resume raw text (for context):
-${profile?.rawResumeText?.slice(0, 1000) || 'Not available'}
+TARGET ROLE: ${jobTitle}
+${jobDescription ? `\nJOB DESCRIPTION CONTEXT:\n${jobDescription.slice(0, 1000)}` : ''}
 
-Return ONLY valid JSON:
+CANDIDATE PROFILE:
+${contextBlock}
+
+Return ONLY valid JSON (no markdown fences, no explanation):
 {
-  "name": "full name",
-  "headline": "tailored headline for this role",
-  "summary": "3-4 sentence tailored summary",
-  "skills": ["skill1", "skill2", ...],
+  "name": "candidate full name",
+  "headline": "tailored title for ${jobTitle}",
+  "summary": "3-4 sentences tailored to this role, using actual skills and experience above",
+  "skills": ["skill1", "skill2"],
   "experience": [
-    {
-      "title": "Job Title",
-      "company": "Company",
-      "duration": "Start – End",
-      "bullets": ["achievement 1", "achievement 2"]
-    }
+    { "title": "Job Title", "company": "Company", "duration": "Start – End", "bullets": ["quantified achievement", "impact statement"] }
   ],
   "projects": [
-    {
-      "name": "Project Name",
-      "description": "1-2 sentence impact-focused description",
-      "tech": ["tech1", "tech2"]
-    }
+    { "name": "Project Name", "description": "1-2 sentence impact-focused description for this role", "tech": ["tech1"] }
   ],
   "education": [
-    { "degree": "degree", "school": "school", "year": "year" }
+    { "degree": "Degree", "school": "School", "year": "Year" }
   ]
 }`
 
@@ -95,7 +103,14 @@ Return ONLY valid JSON:
       return NextResponse.json({ error: 'Failed to generate resume structure' }, { status: 500 })
     }
 
-    return NextResponse.json({ success: true, resume: resumeData, format })
+    // Auto-save
+    const saved = await SavedResume.create({
+      userId: session.user.id,
+      jobTitle: jobTitle.trim(),
+      resume: resumeData,
+    })
+
+    return NextResponse.json({ success: true, resume: resumeData, savedId: String(saved._id) })
   } catch (error) {
     console.error('Resume generate error:', error)
     return NextResponse.json({ error: 'Failed to generate resume' }, { status: 500 })

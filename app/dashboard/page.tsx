@@ -300,7 +300,7 @@ export default function DashboardPage() {
               <div className="flex items-stretch gap-px rounded-xl overflow-hidden border border-white/[0.06] shrink-0">
                 {[
                   { label: 'Avg Score', value: avgScore || null, suffix: '', color: avgScore ? getScoreColor(avgScore) : undefined },
-                  { label: 'Cohort', value: cohortPct > 0 ? `T${100 - cohortPct}%` : null, suffix: '', color: '#3FC5F0' },
+                  { label: 'Ranking', value: cohortPct > 0 ? `Top ${100 - cohortPct}%` : null, suffix: '', color: '#3FC5F0' },
                   { label: 'Sessions', value: completedSessions.length || null, suffix: '', color: undefined },
                   { label: 'Streak', value: currentStreak > 0 ? `${currentStreak}d` : null, suffix: '', color: '#8B7CF8' },
                 ].map((stat, i, arr) => (

@@ -37,8 +37,8 @@ function makeHeaders(): Record<string, string> {
 export async function fetchGitHubRepos(username: string): Promise<ParsedRepo[]> {
   try {
     const res = await fetch(
-      `${GITHUB_API}/users/${username}/repos?sort=updated&per_page=30&type=owner`,
-      { headers: makeHeaders(), next: { revalidate: 3600 } }
+      `${GITHUB_API}/users/${username}/repos?sort=updated&per_page=50&type=owner`,
+      { headers: makeHeaders(), cache: 'no-store' }
     )
     if (!res.ok) return []
 
