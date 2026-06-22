@@ -20,7 +20,7 @@ export async function GET(
 
     const [interviewSession, userDoc] = await Promise.all([
       InterviewSession.findOne({ _id: id, userId: session.user.id })
-        .select('format targetSkill scores insightReport completedAt status messages scoreUpdate'),
+        .select('format targetSkill scores insightReport completedAt status messages scoreUpdate companyMode'),
       User.findById(session.user.id).select('username').lean(),
     ])
 
@@ -36,6 +36,7 @@ export async function GET(
       completedAt: interviewSession.completedAt,
       status: interviewSession.status,
       scoreUpdate: interviewSession.scoreUpdate || null,
+      companyMode: interviewSession.companyMode || null,
       username: (userDoc as { username?: string } | null)?.username || '',
       messages: (interviewSession.messages || []).map((m: { role: string; content: string }) => ({
         role: m.role,

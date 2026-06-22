@@ -12,9 +12,10 @@ import {
   TrendingUp,
   Users,
   MessageCircle,
-  ChevronRight,
+  Building2,
   Cpu,
   Code2,
+  Zap,
 } from 'lucide-react'
 import { useSession, signOut } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
@@ -87,7 +88,9 @@ const COMPARISON = [
   { feature: 'AI interviews on your actual code',  i: true,  n: false, l: false },
   { feature: 'GitHub-backed evidence per skill',   i: true,  n: false, l: false },
   { feature: 'Adaptive to your projects',          i: true,  n: false, l: false },
-  { feature: 'Tailored resume per JD',             i: true,  n: false, l: false },
+  { feature: 'Tailored resume per JD + match score', i: true, n: false, l: false },
+  { feature: 'Company-mode interview simulation',  i: true,  n: false, l: false },
+  { feature: 'Peer mock interview matching',       i: true,  n: false, l: false },
   { feature: 'Cohort percentile ranking',          i: true,  n: false, l: false },
 ]
 
@@ -135,6 +138,7 @@ export default function LandingPage() {
             {[
               { label: 'How it works', href: '#how-it-works' },
               { label: 'Features', href: '#features' },
+              { label: 'Companies', href: '/companies' },
               { label: 'Leaderboard', href: '/leaderboard' },
               { label: 'For Recruiters', href: '/recruiter/login' },
             ].map((item) => (
@@ -469,6 +473,96 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* ── Company mode + Peer ── */}
+      <section className="py-20 px-6 border-t border-white/[0.05]">
+        <div className="max-w-5xl mx-auto">
+          <div className="grid md:grid-cols-2 gap-6">
+            {/* Company mode */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              className="p-8 rounded-2xl border border-white/[0.07] bg-[#0a0c1a]"
+            >
+              <div className="w-10 h-10 rounded-xl bg-[#8B7CF8]/15 border border-[#8B7CF8]/25 flex items-center justify-center mb-5">
+                <Building2 className="w-5 h-5 text-[#8B7CF8]" />
+              </div>
+              <h3 className="text-lg font-bold mb-2">Company-mode interviews</h3>
+              <p className="text-sm text-white/40 leading-relaxed mb-4">
+                Paste a JD from Google, Stripe, or any company. The AI shifts its question style,
+                tone, and focus areas to simulate how that company actually interviews.
+              </p>
+              <Link
+                href="/companies"
+                className="inline-flex items-center gap-1.5 text-xs text-[#8B7CF8] hover:text-[#a898ff] transition-colors"
+              >
+                Browse companies <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            </motion.div>
+
+            {/* Peer interviews */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.06 }}
+              className="p-8 rounded-2xl border border-white/[0.07] bg-[#0a0c1a]"
+            >
+              <div className="w-10 h-10 rounded-xl bg-[#3FC5F0]/15 border border-[#3FC5F0]/25 flex items-center justify-center mb-5">
+                <Users className="w-5 h-5 text-[#3FC5F0]" />
+              </div>
+              <h3 className="text-lg font-bold mb-2">Peer mock interviews</h3>
+              <p className="text-sm text-white/40 leading-relaxed mb-4">
+                Match with another engineer for a live 2-way mock. Swap roles — interview and be
+                interviewed. AI moderator gives coaching tips mid-session.
+              </p>
+              <Link
+                href="/peer/find"
+                className="inline-flex items-center gap-1.5 text-xs text-[#3FC5F0] hover:text-[#60d5f5] transition-colors"
+              >
+                Find a peer <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            </motion.div>
+
+            {/* Memory engine */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.09 }}
+              className="p-8 rounded-2xl border border-white/[0.07] bg-[#0a0c1a]"
+            >
+              <div className="w-10 h-10 rounded-xl bg-[#FB7185]/15 border border-[#FB7185]/25 flex items-center justify-center mb-5">
+                <Brain className="w-5 h-5 text-[#FB7185]" />
+              </div>
+              <h3 className="text-lg font-bold mb-2">Cross-session memory</h3>
+              <p className="text-sm text-white/40 leading-relaxed">
+                Intervue tracks your weak areas across sessions. Each new interview opens with your
+                recurring gaps pre-loaded — so the AI always pushes you on what matters most.
+              </p>
+            </motion.div>
+
+            {/* Wrapped + weekly brief */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.12 }}
+              className="p-8 rounded-2xl border border-white/[0.07] bg-[#0a0c1a]"
+            >
+              <div className="w-10 h-10 rounded-xl bg-[#2DE2C5]/15 border border-[#2DE2C5]/25 flex items-center justify-center mb-5">
+                <Zap className="w-5 h-5 text-[#2DE2C5]" />
+              </div>
+              <h3 className="text-lg font-bold mb-2">Year in review + weekly briefs</h3>
+              <p className="text-sm text-white/40 leading-relaxed">
+                A shareable Wrapped card for your interview year. Plus a weekly Atlas brief that
+                surfaces your progress, top skills, and next focus area — delivered automatically.
+              </p>
+            </motion.div>
+          </div>
+        </div>
+      </section>
+
       {/* ── Comparison ── */}
       <section className="py-28 px-6 border-t border-white/[0.05]">
         <div className="max-w-3xl mx-auto">
@@ -644,6 +738,7 @@ export default function LandingPage() {
           <div className="flex items-center gap-6 text-xs text-white/25">
             <Link href="/onboarding" className="hover:text-white/60 transition-colors">Sign in</Link>
             <Link href="/leaderboard" className="hover:text-white/60 transition-colors">Leaderboard</Link>
+            <Link href="/companies" className="hover:text-white/60 transition-colors">Companies</Link>
             <Link href="/recruiter" className="hover:text-white/60 transition-colors">Recruiters</Link>
             <span>© 2026 Intervue</span>
           </div>

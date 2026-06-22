@@ -203,6 +203,8 @@ export default function ResumesPage() {
   const [savedResumes, setSavedResumes] = useState<SavedResume[]>([])
   const [loadingList, setLoadingList] = useState(true)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [jdMatchScore, setJdMatchScore] = useState<number | null>(null)
+  const [jdMatchNotes, setJdMatchNotes] = useState<string | null>(null)
 
   useEffect(() => {
     fetch('/api/resume/saved')
@@ -227,6 +229,8 @@ export default function ResumesPage() {
       if (res.ok && data.resume) {
         setCurrentResume(data.resume)
         setCurrentTitle(jobTitle.trim())
+        setJdMatchScore(data.jdMatchScore ?? null)
+        setJdMatchNotes(data.jdMatchNotes ?? null)
         toast.success('Resume generated and saved!')
         // Refresh list
         const listRes = await fetch('/api/resume/saved')
@@ -238,6 +242,8 @@ export default function ResumesPage() {
         setJobDescription('')
         setShowJd(false)
       } else {
+        setJdMatchScore(null)
+        setJdMatchNotes(null)
         toast.error(data.error || 'Generation failed')
       }
     } catch {
@@ -427,6 +433,31 @@ export default function ResumesPage() {
                 ))}
               </div>
             </div>
+
+            {/* JD match score */}
+            {jdMatchScore !== null && (
+              <div className="rounded-xl border border-white/[0.08] bg-[#0A0C1A] p-5">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs text-[#888FC0] uppercase tracking-wider font-semibold">JD match score</span>
+                  <span
+                    className="text-2xl font-bold font-mono"
+                    style={{ color: jdMatchScore >= 70 ? '#2DE2C5' : jdMatchScore >= 45 ? '#F0A040' : '#FB7185' }}
+                  >
+                    {jdMatchScore}/100
+                  </span>
+                </div>
+                <div className="h-1.5 bg-white/[0.04] rounded-full overflow-hidden mb-3">
+                  <div
+                    className="h-full rounded-full transition-all"
+                    style={{
+                      width: `${jdMatchScore}%`,
+                      background: jdMatchScore >= 70 ? '#2DE2C5' : jdMatchScore >= 45 ? '#F0A040' : '#FB7185',
+                    }}
+                  />
+                </div>
+                {jdMatchNotes && <p className="text-xs text-[#AEB5E0] leading-relaxed">{jdMatchNotes}</p>}
+              </div>
+            )}
 
             {/* Preview */}
             <AnimatePresence mode="wait">

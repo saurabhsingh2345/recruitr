@@ -22,7 +22,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
-import { getScoreColor, getScoreLabel, getConfidenceBand } from '@/lib/scoring'
+import { getScoreColor, getScoreLabel, getConfidenceBand, getDecaySignal } from '@/lib/scoring'
 import { SkillConstellation } from '@/components/SkillConstellation'
 import { CompanyModeToggle } from '@/components/interview/CompanyModeToggle'
 
@@ -76,10 +76,11 @@ const FORMAT_ICONS: Record<string, string> = {
 }
 
 /** Compact skill legend row paired with the constellation */
-function SkillLegendRow({ name, score, evidence, scoreHistory }: { name: string; score: number; evidence?: string[]; scoreHistory?: { score: number }[] }) {
+function SkillLegendRow({ name, score, evidence, scoreHistory, lastUpdated }: { name: string; score: number; evidence?: string[]; scoreHistory?: { score: number }[]; lastUpdated?: string }) {
   const color = getScoreColor(score)
   const sparkData = scoreHistory && scoreHistory.length >= 2 ? scoreHistory.slice(-8) : null
   const band = scoreHistory && scoreHistory.length >= 3 ? getConfidenceBand(scoreHistory) : null
+  const decay = lastUpdated ? getDecaySignal(lastUpdated) : null
   return (
     <div className="flex items-center gap-3">
       <span className="node-dot w-2 h-2 shrink-0" style={{ background: color, boxShadow: `0 0 8px 1px ${color}99` }} />
@@ -104,7 +105,15 @@ function SkillLegendRow({ name, score, evidence, scoreHistory }: { name: string;
           <div className="text-[9px] font-mono text-white/20 leading-none mt-0.5">±{band.sigma}</div>
         )}
       </div>
-      {evidence && evidence.length > 0 ? (
+      {decay && decay.level !== 'fresh' ? (
+        <span
+          className="text-[9px] w-14 text-right hidden lg:block truncate"
+          style={{ color: decay.level === 'stale' ? '#FB7185' : '#F0A040' }}
+          title={decay.label}
+        >
+          {decay.daysIdle}d idle
+        </span>
+      ) : evidence && evidence.length > 0 ? (
         <span className="text-[9px] text-white/25 w-14 text-right hidden lg:block">
           {evidence.length} {evidence.length === 1 ? 'src' : 'sources'}
         </span>

@@ -651,6 +651,35 @@ html:not(.dark) aside [class*="text-sidebar-foreground/25"] {
   color: #706d68 !important;
 }
 
-/* Stat numbers, mono font elements — ensure dark on cream */
-html:not(.dark) [class*="font-mono"] { color: #0c0a07; }
-html:not(.dark) [class*="font-bold"][class*="font-mono"] { color: #0c0a07 !important; }
+/* Stat numbers, mono font elements — ensure dark on cream, but don't override accent colors */
+html:not(.dark) .font-mono:not([class*="text-[#"]):not([class*="text-[#2DE"]):not([class*="text-[#FB"]):not([class*="text-[#8B"]):not([class*="text-[#3F"]):not([class*="text-[#C7"]):not([class*="text-[#F0"]) {
+  color: #0c0a07;
+}
+
+/* Input/textarea placeholder — readable on cream */
+html:not(.dark) input::placeholder,
+html:not(.dark) textarea::placeholder { color: #706d68 !important; }
+
+/* Input/textarea backgrounds */
+html:not(.dark) [class*="bg-[#05060F]"] input,
+html:not(.dark) [class*="bg-[#05060F]"] textarea {
+  color: #0c0a07 !important;
+}
+html:not(.dark) input[class*="bg-[#05060F]"],
+html:not(.dark) textarea[class*="bg-[#05060F]"] {
+  background-color: #ede8e0 !important;
+  color: #0c0a07 !important;
+}
+
+/* Inline hex bg overrides for bg-[#05060f] (lowercase) */
+html:not(.dark) [class*="bg-[#05060f]"] {
+  background-color: #e4dfd6 !important;
+}
+
+/* Code/pre blocks */
+html:not(.dark) pre, html:not(.dark) code { color: #0c0a07 !important; }
+
+/* Badge-like score chips that inherit wrong color */
+html:not(.dark) [class*="text-white\/70"] { color: #2c2a26 !important; }
+html:not(.dark) [class*="text-white\/65"] { color: #302d27 !important; }
+html:not(.dark) [class*="text-white\/55"] { color: #363330 !important; }

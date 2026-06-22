@@ -47,6 +47,7 @@ interface Report {
   }
   completedAt: string
   scoreUpdate: ScoreUpdate | null
+  companyMode?: { company: string; jdSnippet: string; style: string } | null
   messages?: Message[]
 }
 
@@ -418,6 +419,12 @@ export default function InterviewReportPage() {
               {report.format?.replace('_', ' ')} · {report.targetSkill} ·{' '}
               {new Date(report.completedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
             </p>
+            {report.companyMode?.company && (
+              <div className="inline-flex items-center gap-1.5 mt-3 px-3 py-1 rounded-full bg-[#8B7CF8]/10 border border-[#8B7CF8]/20 text-[#8B7CF8] text-xs">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                Company mode · {report.companyMode.company}
+              </div>
+            )}
           </motion.div>
 
           {/* Tabs */}

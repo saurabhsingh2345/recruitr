@@ -1,6 +1,6 @@
 # What We Have Built — Intervue
 
-*Internal document for investor conversations. Accurate as of June 2026 — last updated 2026-06-22 (cross-session memory engine, company-mode simulation, peer interview mode, team skill graph, year-in-review wrapped card, onboarding flow, score confidence bands in UI, GitLab Settings card, handshake + recruiter-viewed notifications wired, password change).*
+*Internal document for investor conversations. Accurate as of June 2026 — last updated 2026-06-23 (cross-session memory engine, company-mode simulation, peer interview mode, team skill graph, year-in-review wrapped card, onboarding flow, score confidence bands in UI, GitLab Settings card, handshake + recruiter-viewed notifications wired, password change, score decay signal, company mode on report, admin growth dashboard, /companies discovery page, Resume Studio JD match score, weekly brief archive, team skill staleness fix, landing page improvements, light mode polish).*
 
 ---
 
@@ -412,16 +412,45 @@ Candidates generate tailored resumes from a single page:
 
 1. Enter job title + optional JD paste.
 2. AI reads verified skill scores, GitHub projects, work experience, education, and bio → produces ATS-optimized resume in ~5 seconds.
-3. Auto-saved to library with timestamp.
-4. Copy ATS plain text (one click).
-5. **Download PDF** (one click) — formatted A4 PDF generated client-side from `@react-pdf/renderer`. Lazy-loaded so it doesn't add to initial bundle.
-6. Library panel: all saved resumes with delete.
+3. **JD match score** — when a JD is provided, the AI returns an integer 0–100 match score and a 1–2 sentence analysis of key matches and gaps. Displayed as a progress bar and notes between the generator and preview.
+4. Auto-saved to library with timestamp.
+5. Copy ATS plain text (one click).
+6. **Download PDF** (one click) — formatted A4 PDF generated client-side from `@react-pdf/renderer`. Lazy-loaded so it doesn't add to initial bundle.
+7. Library panel: all saved resumes with delete.
 
 Generator only uses verified profile data — cannot hallucinate skills.
 
 ---
 
-### 25. Settings — Password Change
+### 25. Score Decay Signal
+
+`getDecaySignal(lastUpdated)` in `lib/scoring.ts` returns `{ level: 'fresh'|'ageing'|'stale', daysIdle, label }`. A skill last updated within 30 days is `fresh` (no indicator). Between 30–60 days it is `ageing` (orange `Nd idle` chip in the dashboard skill row). Over 60 days it is `stale` (red chip + `practice to refresh` hint). This is an honest signal — scores are not reduced, only flagged.
+
+---
+
+### 26. Admin Growth Dashboard
+
+`/admin` — visible only to emails listed in the `ADMIN_EMAILS` env var. Fetches from `GET /api/admin/stats`.
+
+Surfaces: total users, new users last 30 days, sessions in last 7 days, completion rate %, company-mode session count, team count, weekly briefs sent, top 8 practised skills (horizontal bar chart), 7-day daily session histogram (BarChart with gradient cells), and two flywheel health meters (session completion rate, company-mode adoption %).
+
+---
+
+### 27. /companies Discovery Page
+
+`/companies` — public, server-rendered (SSR), fully SEO-indexed. Aggregates real usage data: companies practised for via company-mode, sorted by session count. Falls back to a seed list of 8 well-known companies if fewer than 5 real entries exist. Each card shows company name, session count, avg score, and a snippet of the inferred interview style.
+
+Nav link added to the landing page. Footer link added. Links back to "Start a company-mode interview" CTA.
+
+---
+
+### 28. Weekly Brief Archive
+
+`/briefs` — candidates can view all past Atlas weekly briefs. The list view (`GET /api/me/briefs`) shows up to 52 weeks of brief subjects and dates. Clicking a brief expands it inline and fetches the full HTML body from `GET /api/me/briefs/[id]`. A link to the archive is surfaced in the Atlas agent page skills tab below MemoryInsights.
+
+---
+
+### 29. Settings — Password Change
 
 Credential-auth candidates (email+password) can change their password from Settings → Privacy → Password section. Requires current password verification via bcrypt before accepting the new one. GitHub OAuth candidates see an informational message instead. Implemented at `POST /api/auth/change-password`.
 
@@ -483,8 +512,7 @@ Credential-auth candidates (email+password) can change their password from Setti
 - **LiveKit video interviews** — room token API scaffolded at `/api/interview/room`; no UI built. Needs `livekit-server-sdk` installed and env vars set.
 - **LinkedIn parser** requires a running Python microservice and a valid session cookie — not a zero-setup integration.
 - **Peer interview matchmaking latency** — the queue currently has no skill-level matching; two candidates of very different skill levels can be paired. A future version should weight by cohort percentile before matching.
-- **Company mode badge on proof receipt** — session stores `companyMode.company` but the receipt page (`/api/receipt/[sessionId]`) doesn't yet display the company name on the OG card or the full report page.
-- **Team skill graph staleness** — member skill snapshots are taken at join time; they don't auto-refresh when a member completes new sessions. A sync endpoint or periodic refresh job is needed.
+- **Company mode OG card** — company name shown on the report page but not yet on the OG image at `/api/receipt/[sessionId]`.
 
 ---
 

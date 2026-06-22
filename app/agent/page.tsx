@@ -581,6 +581,15 @@ export default function AgentPage() {
                 }}
               />
               <MemoryInsights />
+              <div className="mt-4 pt-4 border-t border-white/[0.05]">
+                <Link
+                  href="/briefs"
+                  className="flex items-center gap-2 text-xs text-white/30 hover:text-[#8B7CF8] transition-colors"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#8B7CF8]/50" />
+                  View weekly brief archive
+                </Link>
+              </div>
             </>
           )}
           {rightTab === 'market' && <MarketFeed />}

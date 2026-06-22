@@ -82,7 +82,9 @@ Return ONLY valid JSON (no markdown fences, no explanation):
   ],
   "education": [
     { "degree": "Degree", "school": "School", "year": "Year" }
-  ]
+  ],
+  "jdMatchScore": ${jobDescription ? '<integer 0-100: how well the candidate\'s verified skills + experience match this JD>' : 'null'},
+  "jdMatchNotes": ${jobDescription ? '"1-2 sentences: key matches and gaps vs the JD"' : 'null'}
 }`
 
     const { text } = await generateText({
@@ -110,7 +112,13 @@ Return ONLY valid JSON (no markdown fences, no explanation):
       resume: resumeData,
     })
 
-    return NextResponse.json({ success: true, resume: resumeData, savedId: String(saved._id) })
+    return NextResponse.json({
+      success: true,
+      resume: resumeData,
+      savedId: String(saved._id),
+      jdMatchScore: resumeData.jdMatchScore ?? null,
+      jdMatchNotes: resumeData.jdMatchNotes ?? null,
+    })
   } catch (error) {
     console.error('Resume generate error:', error)
     return NextResponse.json({ error: 'Failed to generate resume' }, { status: 500 })

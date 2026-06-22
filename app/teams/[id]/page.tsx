@@ -46,6 +46,7 @@ export default function TeamPage() {
   const [loadingTeam, setLoadingTeam] = useState(true)
   const [loadingAnalysis, setLoadingAnalysis] = useState(false)
   const [regenerating, setRegenerating] = useState(false)
+  const [syncingSkills, setSyncingSkills] = useState(false)
 
   useEffect(() => {
     fetch(`/api/teams/${id}`)
@@ -53,6 +54,20 @@ export default function TeamPage() {
       .then(d => { setTeam(d?.team ?? null); setLoadingTeam(false) })
       .catch(() => setLoadingTeam(false))
   }, [id])
+
+  async function syncMySkills() {
+    setSyncingSkills(true)
+    const r = await fetch(`/api/teams/${id}`, { method: 'PATCH' })
+    if (r.ok) {
+      toast.success('Your skills refreshed')
+      // Re-fetch team to show updated snapshot
+      const t = await fetch(`/api/teams/${id}`)
+      if (t.ok) { const d = await t.json(); setTeam(d?.team ?? null) }
+    } else {
+      toast.error('Failed to sync skills')
+    }
+    setSyncingSkills(false)
+  }
 
   async function loadAnalysis() {
     setLoadingAnalysis(true)
@@ -146,7 +161,18 @@ export default function TeamPage() {
 
         {/* Members */}
         <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5 mb-6">
-          <h2 className="text-xs text-white/30 uppercase tracking-wider mb-4">Members</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xs text-white/30 uppercase tracking-wider">Members</h2>
+            <button
+              onClick={syncMySkills}
+              disabled={syncingSkills}
+              className="flex items-center gap-1.5 text-[10px] text-white/40 hover:text-[#2DE2C5] transition-colors disabled:opacity-40"
+              title="Refresh your skill snapshot in this team"
+            >
+              <RefreshCw className={`w-3 h-3 ${syncingSkills ? 'animate-spin' : ''}`} />
+              Refresh my skills
+            </button>
+          </div>
           <div className="space-y-3">
             {team.members.map(m => (
               <div key={m.userId} className="flex items-center gap-3">

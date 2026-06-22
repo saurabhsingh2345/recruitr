@@ -46,6 +46,22 @@ export function getConfidenceBand(scoreHistory: { score: number }[]): { low: num
   }
 }
 
+/**
+ * Returns a decay signal for a skill based on how long ago it was last updated.
+ * After 60 days idle the score is "stale" — honest signal, not a score reduction.
+ */
+export function getDecaySignal(lastUpdated: Date | string): {
+  level: 'fresh' | 'ageing' | 'stale'
+  daysIdle: number
+  label: string
+} {
+  const ms = Date.now() - new Date(lastUpdated).getTime()
+  const daysIdle = Math.floor(ms / (1000 * 60 * 60 * 24))
+  if (daysIdle < 30) return { level: 'fresh', daysIdle, label: '' }
+  if (daysIdle < 60) return { level: 'ageing', daysIdle, label: `${daysIdle}d idle` }
+  return { level: 'stale', daysIdle, label: `${daysIdle}d idle — practice to refresh` }
+}
+
 export function getScoreColor(score: number): string {
   // Cosmic spectrum — teal (high) → cyan → violet → orchid → rose (low)
   if (score >= 85) return '#2DE2C5'
