@@ -13,19 +13,19 @@ interface Props {
   topLanguage: string | null
   parsedSkills: Skill[]
   initialStep?: number
+  onDismiss?: () => void
 }
 
 const STEPS = ['Connect', 'First session', 'Your proof']
 
-export function OnboardingModal({ username, topRepo, topLanguage, parsedSkills, initialStep = 0 }: Props) {
+export function OnboardingModal({ username, topRepo, topLanguage, parsedSkills, initialStep = 0, onDismiss }: Props) {
   const [step, setStep] = useState(initialStep)
   const [starting, setStarting] = useState(false)
   const router = useRouter()
 
   async function handleSkip() {
     await fetch('/api/onboarding/skip', { method: 'POST' })
-    // Force a re-render without the modal by reloading
-    router.refresh()
+    onDismiss?.()
   }
 
   async function handleStartSession() {
@@ -54,6 +54,7 @@ export function OnboardingModal({ username, topRepo, topLanguage, parsedSkills, 
 
   async function handleDone() {
     await fetch('/api/onboarding/skip', { method: 'POST' })
+    onDismiss?.()
     router.push(`/p/${username}`)
   }
 

@@ -146,6 +146,7 @@ export default function DashboardPage() {
   const [selectedSkill, setSelectedSkill] = useState('')
   const [unreadMessages, setUnreadMessages] = useState(0)
   const [companyJD, setCompanyJD] = useState<string | null>(null)
+  const [onboardingDismissed, setOnboardingDismissed] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -228,7 +229,8 @@ export default function DashboardPage() {
   const openToWork = data?.user?.openToWork ?? true
 
   // Onboarding: show modal for new users with no skills, or returning from their first session
-  const showOnboarding = !loading && data !== null && data.profile.onboardingComplete !== true
+  const showOnboarding = !loading && data !== null && data.profile.onboardingComplete !== true && !onboardingDismissed
+  const showOnboardingNudge = !loading && data !== null && onboardingDismissed && completedSessions.length === 0
   const isReturningFromSession =
     showOnboarding && (data?.profile?.onboardingStep ?? 0) >= 2 && allSkills.length > 0
   const topRepo = data?.profile?.projects?.[0]
@@ -286,6 +288,43 @@ export default function DashboardPage() {
         </div>
 
         <div className="max-w-5xl mx-auto px-4 sm:px-8 py-6 sm:py-8 space-y-8 sm:space-y-10">
+
+          {/* Post-skip nudge — shown after user dismisses onboarding without completing a session */}
+          {showOnboardingNudge && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="rounded-xl border border-[#2DE2C5]/20 bg-[#2DE2C5]/[0.05] p-4 flex flex-col sm:flex-row sm:items-center gap-4"
+            >
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-semibold mb-0.5">Verify your skills to unlock your proof profile</div>
+                <div className="text-xs text-white/40 leading-relaxed">
+                  Take a quick interview on your top skills — it takes ~15 minutes and turns your profile from a list of keywords into verified proof scores that recruiters can trust.
+                </div>
+              </div>
+              <div className="flex items-center gap-3 shrink-0">
+                {allSkills.slice(0, 3).map(s => (
+                  <button
+                    key={s.name}
+                    onClick={() => startInterview('coding', s.name)}
+                    disabled={startingInterview}
+                    className="text-xs px-3 py-2 rounded-lg border border-[#2DE2C5]/25 text-[#2DE2C5] hover:bg-[#2DE2C5]/[0.1] transition-colors disabled:opacity-40 whitespace-nowrap"
+                  >
+                    {s.name}
+                  </button>
+                ))}
+                {allSkills.length === 0 && (
+                  <button
+                    onClick={() => startInterview('gap', 'General')}
+                    disabled={startingInterview}
+                    className="text-xs px-4 py-2 rounded-lg bg-[#2DE2C5] text-[#04050e] font-semibold hover:bg-[#25c9ae] transition-colors disabled:opacity-40"
+                  >
+                    Start gap analysis
+                  </button>
+                )}
+              </div>
+            </motion.div>
+          )}
 
           {/* Hero: rank card + single CTA */}
           <section className="space-y-3">
@@ -610,6 +649,7 @@ export default function DashboardPage() {
           topLanguage={topLanguage}
           parsedSkills={allSkills.map(s => ({ name: s.name, proofScore: s.proofScore }))}
           initialStep={isReturningFromSession ? 2 : 0}
+          onDismiss={() => setOnboardingDismissed(true)}
         />
       )}
     </div>
