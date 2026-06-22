@@ -1,7 +1,14 @@
-import type { NextConfig } from "next";
+import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
-  /* config options here */
-};
+  images: {
+    remotePatterns: [
+      { hostname: 'avatars.githubusercontent.com' },
+      { hostname: 'github.com' },
+    ],
+  },
+  turbopack: {},
+  serverExternalPackages: ['pdf-parse'],
+}
 
-export default nextConfig;
+export default nextConfig
