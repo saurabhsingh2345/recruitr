@@ -10,7 +10,8 @@ export async function POST() {
   await connectDB()
   await Profile.findOneAndUpdate(
     { userId: session.user.id },
-    { onboardingComplete: true, onboardingStep: 99 }
+    { $set: { onboardingComplete: true, onboardingStep: 99 } },
+    { upsert: true }
   )
   return NextResponse.json({ ok: true })
 }

@@ -13,7 +13,8 @@ export async function POST(req: NextRequest) {
   await connectDB()
   await Profile.findOneAndUpdate(
     { userId: session.user.id },
-    { onboardingStep: step }
+    { $set: { onboardingStep: step } },
+    { upsert: true }
   )
   return NextResponse.json({ ok: true })
 }

@@ -230,7 +230,8 @@ export default function DashboardPage() {
 
   // Onboarding: show modal for new users with no skills, or returning from their first session
   const showOnboarding = !loading && data !== null && data.profile.onboardingComplete !== true && !onboardingDismissed
-  const showOnboardingNudge = !loading && data !== null && onboardingDismissed && completedSessions.length === 0
+  // Nudge: profile is marked complete (skipped) but they haven't done any interview yet
+  const showOnboardingNudge = !loading && data !== null && data.profile.onboardingComplete === true && completedSessions.length === 0
   const isReturningFromSession =
     showOnboarding && (data?.profile?.onboardingStep ?? 0) >= 2 && allSkills.length > 0
   const topRepo = data?.profile?.projects?.[0]
@@ -649,7 +650,15 @@ export default function DashboardPage() {
           topLanguage={topLanguage}
           parsedSkills={allSkills.map(s => ({ name: s.name, proofScore: s.proofScore }))}
           initialStep={isReturningFromSession ? 2 : 0}
-          onDismiss={() => setOnboardingDismissed(true)}
+          onDismiss={() => {
+            setOnboardingDismissed(true)
+            // Optimistically mark complete in local state so the modal never
+            // reappears on back-navigation even before the next /api/me fetch
+            setData(prev => prev ? {
+              ...prev,
+              profile: { ...prev.profile, onboardingComplete: true, onboardingStep: 99 },
+            } : prev)
+          }}
         />
       )}
     </div>
