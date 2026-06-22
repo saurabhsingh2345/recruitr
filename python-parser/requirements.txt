@@ -1,0 +1,9 @@
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+pdfminer.six==20231228
+spacy==3.7.6
+PyGitHub==2.4.0
+python-multipart==0.0.9
+# LinkedIn scraping (joeyism/linkedin_scraper, Playwright-based)
+linkedin-scraper>=3.1.2
+playwright>=1.40.0
