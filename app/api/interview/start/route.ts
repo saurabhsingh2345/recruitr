@@ -19,6 +19,14 @@ const FORMAT_PROMPTS: Record<string, string> = {
   behavioural:
     "Start a behavioural interview using the STAR framework. Ask about a specific challenging technical situation — a difficult bug, a team conflict, a time they had to learn something fast.",
   gap: "Start a focused 10-minute gap session on the target skill. Start with a diagnostic question to assess current knowledge level, then probe deeper into concepts they might be weak on.",
+  pm_case:
+    "Start a Product Manager case study interview. Do NOT mention code or technical implementation. Set up a realistic product scenario relevant to the candidate's target skill (e.g. 'You're the PM for Google Maps — daily active users dropped 15% last month. Walk me through how you'd diagnose and address this.'). Begin with this opening scenario and ask them to start by defining the problem.",
+  design_critique:
+    "Start a UX/Design critique interview. Do NOT mention code. Describe a real product scenario in text (e.g. 'You're reviewing the onboarding flow of a fintech app targeting first-time investors in Tier-2 cities. The drop-off rate at step 3 is 60%.'). Ask the candidate to identify UX issues and walk through how they'd approach a redesign.",
+  ops_case:
+    "Start an Operations / Program Management case interview. Do NOT mention code. Present a real-world operational challenge (e.g. 'You're the ops lead for a food delivery startup expanding to a new city. Launch is in 6 weeks. Walk me through how you'd plan it.'). Ask them to start by identifying key workstreams and risks.",
+  sales_discovery:
+    "Start a Sales / Customer Success discovery interview. Do NOT mention code. Roleplay a scenario: 'I'm the CTO of a 200-person SaaS company. We're having trouble retaining enterprise customers past year one — churn is at 25%. I have 20 minutes.' Begin the discovery conversation and assess their ability to uncover the real problem before pitching anything.",
 }
 
 export async function POST(req: NextRequest) {

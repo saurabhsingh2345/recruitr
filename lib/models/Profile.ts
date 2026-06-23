@@ -78,6 +78,15 @@ export interface IProject {
   language: string
 }
 
+export interface ICareerGoal {
+  targetRole: string
+  targetLevel: string
+  targetStage: string
+  targetLocation: string
+  targetSalaryLPA: number
+  setAt: Date
+}
+
 export interface IProfile extends Document {
   userId: Types.ObjectId
   githubUsername: string
@@ -100,9 +109,10 @@ export interface IProfile extends Document {
   portfolioTheme: 'minimal' | 'terminal' | 'magazine' | 'bento'
   portfolioCustomization: IPortfolioCustomization
   onboardingComplete: boolean
-  onboardingStep: number   // 0=not started, 1=github, 2=session_started, 3=done
-  githubActivitySummary: string   // 1-2 sentence AI summary of recent GitHub activity; feeds Atlas context
-  twitterActivitySummary: string  // 1-2 sentence AI summary from X/Twitter bio+tweets; feeds Atlas context
+  onboardingStep: number
+  githubActivitySummary: string
+  twitterActivitySummary: string
+  careerGoal?: ICareerGoal
   updatedAt: Date
 }
 
@@ -208,6 +218,14 @@ const ProfileSchema = new Schema<IProfile>({
   onboardingStep: { type: Number, default: 0 },
   githubActivitySummary: { type: String, default: '' },
   twitterActivitySummary: { type: String, default: '' },
+  careerGoal: {
+    targetRole: { type: String, default: '' },
+    targetLevel: { type: String, default: '' },
+    targetStage: { type: String, default: '' },
+    targetLocation: { type: String, default: '' },
+    targetSalaryLPA: { type: Number, default: 0 },
+    setAt: { type: Date, default: Date.now },
+  },
   updatedAt: { type: Date, default: Date.now },
 })
 

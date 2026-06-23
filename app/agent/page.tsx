@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Code2, Sparkles, ArrowLeft, Loader2, Check, X, ShieldCheck,
   SlidersHorizontal, MapPin, Zap, Building2, EyeOff, Eye, MessageSquare,
-  Send, ChevronDown, ChevronUp, TrendingUp,
+  Send, ChevronDown, ChevronUp, TrendingUp, Target, Pencil,
 } from 'lucide-react'
 import { LineChart, Line, ResponsiveContainer } from 'recharts'
 import { Button } from '@/components/ui/button'
@@ -25,9 +25,18 @@ import { NegotiationCoach } from '@/components/messages/NegotiationCoach'
 interface SkillHistory { score: number; at: string }
 interface Skill { name: string; proofScore: number; scoreHistory?: SkillHistory[] }
 
+interface CareerGoal {
+  targetRole: string
+  targetLevel: string
+  targetStage: string
+  targetLocation: string
+  targetSalaryLPA: number
+}
+
 interface AtlasContext {
-  proactiveInsight: { skill: string; score: number; daysIdle: number | null; reason: string } | null
+  proactiveInsight: { skill: string; score: number; daysIdle: number | null; reason: string; goalContext?: string } | null
   pendingHandshakes: number
+  careerGoal?: CareerGoal
 }
 
 interface SkillMatch { skill: string; required: number; candidateScore: number | null; cleared: boolean }
@@ -132,6 +141,9 @@ export default function AgentPage() {
   const [atlasCtx, setAtlasCtx] = useState<AtlasContext | null>(null)
   const [skills, setSkills] = useState<Skill[]>([])
   const [loading, setLoading] = useState(true)
+  const [showGoalForm, setShowGoalForm] = useState(false)
+  const [goalForm, setGoalForm] = useState({ targetRole: '', targetLevel: '', targetStage: 'Any', targetLocation: 'Any', targetSalaryLPA: '' })
+  const [savingGoal, setSavingGoal] = useState(false)
   const [responding, setResponding] = useState<string | null>(null)
   const [showPrefs, setShowPrefs] = useState(false)
   const [discoverability, setDiscoverability] = useState<'open' | 'passive' | 'invisible'>('open')
@@ -173,17 +185,30 @@ export default function AgentPage() {
     if (ctxRes.ok) {
       const ctx = await ctxRes.json()
       setAtlasCtx(ctx)
+      if (ctx?.careerGoal?.targetRole) {
+        setGoalForm({
+          targetRole: ctx.careerGoal.targetRole,
+          targetLevel: ctx.careerGoal.targetLevel,
+          targetStage: ctx.careerGoal.targetStage || 'Any',
+          targetLocation: ctx.careerGoal.targetLocation || 'Any',
+          targetSalaryLPA: String(ctx.careerGoal.targetSalaryLPA || ''),
+        })
+      }
       if (ctx?.proactiveInsight) {
-        const { skill, score, daysIdle, reason } = ctx.proactiveInsight
+        const { skill, score, daysIdle, reason, goalContext } = ctx.proactiveInsight
         let msg = ''
         if (reason === 'required_by_match') {
           msg = `A recruiter match needs **${skill}**, but your score is **${score}**. ${daysIdle && daysIdle > 0 ? `You haven't practiced it in ${daysIdle} days. ` : ''}Strengthen this and I'll push you to the top of the shortlist.`
+        } else if (goalContext) {
+          msg = `You want to be a **${goalContext}**. Your **${skill}** score is **${score}** — that's the blocking gap${daysIdle && daysIdle > 0 ? `, last practiced ${daysIdle} days ago` : ''}. Start a session to move toward your goal?`
         } else {
           msg = `Your **${skill}** score is **${score}**${daysIdle && daysIdle > 0 ? `, last practiced ${daysIdle} days ago` : ''}. One session today would move the needle.`
         }
         setChatMessages([{ role: 'atlas', content: msg }])
       } else if (ctx?.pendingHandshakes > 0) {
         setChatMessages([{ role: 'atlas', content: `You have **${ctx.pendingHandshakes}** opportunit${ctx.pendingHandshakes > 1 ? 'ies' : 'y'} waiting for your review. Want me to summarize any of them?` }])
+      } else if (!ctx?.careerGoal?.targetRole) {
+        setChatMessages([{ role: 'atlas', content: 'Tell me where you want to go — set your career goal above and I\'ll build your path from here.' }])
       } else {
         setChatMessages([{ role: 'atlas', content: 'Your profile looks solid. What can I help you with — improving a skill score, understanding a match, or something else?' }])
       }
@@ -252,6 +277,33 @@ export default function AgentPage() {
       else toast.error('Failed to save')
     } finally {
       setSavingPrefs(false)
+    }
+  }
+
+  async function saveGoal() {
+    if (!goalForm.targetRole.trim() || !goalForm.targetLevel.trim()) {
+      toast.error('Role and level are required')
+      return
+    }
+    setSavingGoal(true)
+    try {
+      const res = await fetch('/api/me/career-goal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...goalForm,
+          targetSalaryLPA: Number(goalForm.targetSalaryLPA) || 0,
+        }),
+      })
+      if (res.ok) {
+        toast.success('Career goal saved — Atlas is updating your path')
+        setShowGoalForm(false)
+        await load()
+      } else {
+        toast.error('Failed to save goal')
+      }
+    } finally {
+      setSavingGoal(false)
     }
   }
 
@@ -514,6 +566,87 @@ export default function AgentPage() {
 
       {/* ── RIGHT PANEL — Skills & tools (desktop only) ── */}
       <div className="hidden lg:flex flex-col flex-1 overflow-hidden">
+
+        {/* Career goal card */}
+        <div className="shrink-0 px-6 py-3 border-b border-white/[0.05]">
+          {atlasCtx?.careerGoal?.targetRole && !showGoalForm ? (
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Target className="w-3.5 h-3.5 text-[#2DE2C5] shrink-0" />
+                <div>
+                  <span className="text-xs font-semibold text-[#2DE2C5]">{atlasCtx.careerGoal.targetLevel} {atlasCtx.careerGoal.targetRole}</span>
+                  {atlasCtx.careerGoal.targetStage && atlasCtx.careerGoal.targetStage !== 'Any' && (
+                    <span className="text-[11px] text-[#888FC0] ml-1.5">· {atlasCtx.careerGoal.targetStage}</span>
+                  )}
+                  {atlasCtx.careerGoal.targetSalaryLPA > 0 && (
+                    <span className="text-[11px] text-[#888FC0] ml-1.5">· ₹{atlasCtx.careerGoal.targetSalaryLPA}L</span>
+                  )}
+                </div>
+              </div>
+              <button onClick={() => setShowGoalForm(true)} className="p-1 rounded-md text-[#888FC0] hover:text-white hover:bg-white/[0.05] transition-colors">
+                <Pencil className="w-3 h-3" />
+              </button>
+            </div>
+          ) : showGoalForm ? (
+            <div className="space-y-2">
+              <div className="text-[10px] text-[#888FC0] uppercase tracking-widest font-semibold">Set career goal</div>
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  value={goalForm.targetRole}
+                  onChange={(e) => setGoalForm({ ...goalForm, targetRole: e.target.value })}
+                  placeholder="Target role (e.g. Frontend Engineer)"
+                  className="col-span-2 bg-[#05060F] border border-[#1A1E3A] rounded-lg px-3 py-1.5 text-xs text-white placeholder:text-[#888FC0] focus:outline-none focus:border-[#2DE2C5]/40"
+                />
+                <input
+                  value={goalForm.targetLevel}
+                  onChange={(e) => setGoalForm({ ...goalForm, targetLevel: e.target.value })}
+                  placeholder="Level (e.g. L4, Senior, Staff)"
+                  className="bg-[#05060F] border border-[#1A1E3A] rounded-lg px-3 py-1.5 text-xs text-white placeholder:text-[#888FC0] focus:outline-none focus:border-[#2DE2C5]/40"
+                />
+                <input
+                  value={goalForm.targetStage}
+                  onChange={(e) => setGoalForm({ ...goalForm, targetStage: e.target.value })}
+                  placeholder="Stage (e.g. Series B, Any)"
+                  className="bg-[#05060F] border border-[#1A1E3A] rounded-lg px-3 py-1.5 text-xs text-white placeholder:text-[#888FC0] focus:outline-none focus:border-[#2DE2C5]/40"
+                />
+                <input
+                  value={goalForm.targetLocation}
+                  onChange={(e) => setGoalForm({ ...goalForm, targetLocation: e.target.value })}
+                  placeholder="Location / Remote"
+                  className="bg-[#05060F] border border-[#1A1E3A] rounded-lg px-3 py-1.5 text-xs text-white placeholder:text-[#888FC0] focus:outline-none focus:border-[#2DE2C5]/40"
+                />
+                <input
+                  type="number"
+                  value={goalForm.targetSalaryLPA}
+                  onChange={(e) => setGoalForm({ ...goalForm, targetSalaryLPA: e.target.value })}
+                  placeholder="Salary LPA (₹)"
+                  className="bg-[#05060F] border border-[#1A1E3A] rounded-lg px-3 py-1.5 text-xs text-white placeholder:text-[#888FC0] focus:outline-none focus:border-[#2DE2C5]/40"
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button onClick={saveGoal} disabled={savingGoal} className="flex-1 bg-[#2DE2C5] text-[#05060F] hover:bg-[#1fb89e] font-semibold h-7 text-xs">
+                  {savingGoal ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Save goal'}
+                </Button>
+                {atlasCtx?.careerGoal?.targetRole && (
+                  <Button onClick={() => setShowGoalForm(false)} variant="outline" className="border-white/[0.08] text-[#AEB5E0] h-7 text-xs">
+                    Cancel
+                  </Button>
+                )}
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => setShowGoalForm(true)}
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl border border-dashed border-[#2DE2C5]/20 hover:border-[#2DE2C5]/40 hover:bg-[#2DE2C5]/[0.03] transition-all text-left"
+            >
+              <Target className="w-4 h-4 text-[#2DE2C5]/50 shrink-0" />
+              <div>
+                <div className="text-xs font-medium text-[#2DE2C5]/70">Set your career goal</div>
+                <div className="text-[11px] text-[#888FC0]">Tell Atlas where you want to go — it will build your path</div>
+              </div>
+            </button>
+          )}
+        </div>
 
         {/* Skill rings row */}
         <div className="shrink-0 px-6 py-4 border-b border-white/[0.05]">

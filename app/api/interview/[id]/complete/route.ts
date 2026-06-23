@@ -55,7 +55,21 @@ export async function POST(
         return sentences[0]?.trim() || m.content.slice(0, 120)
       })
 
-    const analysisPrompt = `Analyze this technical interview transcript and generate a structured assessment.
+    const FORMAT_RUBRICS: Record<string, { axes: Record<string, string>; expertLabel: string }> = {
+      coding:        { axes: { technical_depth: 'technical_depth', problem_solving: 'problem_solving', communication: 'communication', code_quality: 'code_quality' }, expertLabel: 'expert engineer' },
+      system_design: { axes: { technical_depth: 'technical_depth', problem_solving: 'problem_solving', communication: 'communication', design_quality: 'design_quality' }, expertLabel: 'staff engineer' },
+      project_deepdive: { axes: { technical_depth: 'technical_depth', problem_solving: 'problem_solving', communication: 'communication', code_quality: 'ownership_signal' }, expertLabel: 'senior engineer' },
+      behavioural:   { axes: { technical_depth: 'situation_clarity', problem_solving: 'action_quality', communication: 'communication', code_quality: 'impact_articulation' }, expertLabel: 'senior engineer' },
+      gap:           { axes: { technical_depth: 'technical_depth', problem_solving: 'problem_solving', communication: 'communication', code_quality: 'concept_clarity' }, expertLabel: 'expert engineer' },
+      pm_case:       { axes: { technical_depth: 'problem_framing', problem_solving: 'prioritization_logic', communication: 'communication', code_quality: 'insight_quality' }, expertLabel: 'senior PM' },
+      design_critique: { axes: { technical_depth: 'ux_reasoning', problem_solving: 'systems_thinking', communication: 'communication', code_quality: 'design_rationale' }, expertLabel: 'senior designer' },
+      ops_case:      { axes: { technical_depth: 'process_design', problem_solving: 'resource_allocation', communication: 'communication', code_quality: 'risk_identification' }, expertLabel: 'senior ops lead' },
+      sales_discovery: { axes: { technical_depth: 'discovery_quality', problem_solving: 'objection_handling', communication: 'communication', code_quality: 'value_articulation' }, expertLabel: 'senior AE' },
+    }
+    const rubric = FORMAT_RUBRICS[interviewSession.format] || FORMAT_RUBRICS.coding
+    const breakdownKeys = Object.entries(rubric.axes).map(([, v]) => `"${v}": <0-100>`).join(',\n    ')
+
+    const analysisPrompt = `Analyze this interview transcript and generate a structured assessment.
 
 Interview format: ${interviewSession.format}
 Target skill: ${interviewSession.targetSkill}
@@ -70,17 +84,14 @@ Return ONLY valid JSON (no markdown, no code fences):
 {
   "overallScore": <0-100 integer>,
   "breakdown": {
-    "technical_depth": <0-100>,
-    "problem_solving": <0-100>,
-    "communication": <0-100>,
-    "code_quality": <0-100>
+    ${breakdownKeys}
   },
   "strengths": ["<specific strength observed>", "<specific strength>", "<specific strength>"],
   "gaps": ["<specific gap>", "<specific gap>"],
   "studyRecommendations": ["<actionable recommendation>", "<recommendation>", "<recommendation>"],
   "skillDelta": <0-20 integer>,
   "idealAnswers": {
-    "<exact question text from transcript>": "<what an expert engineer would answer — 2-3 sentences, concrete and technical>",
+    "<exact question text from transcript>": "<what a ${rubric.expertLabel} would answer — 2-3 sentences, concrete and specific>",
     "<another question>": "<expert answer>"
   }
 }`
@@ -110,9 +121,12 @@ Return ONLY valid JSON (no markdown, no code fences):
     }
 
     if (!analysis) {
+      const fallbackBreakdown = Object.fromEntries(
+        Object.values(rubric.axes).map(key => [key, 65])
+      )
       analysis = {
         overallScore: 65,
-        breakdown: { technical_depth: 65, problem_solving: 60, communication: 70, code_quality: 65 },
+        breakdown: fallbackBreakdown,
         strengths: ['Clear communication', 'Structured thinking'],
         gaps: ['Could go deeper on edge cases'],
         studyRecommendations: ['Practice more problems in this area'],

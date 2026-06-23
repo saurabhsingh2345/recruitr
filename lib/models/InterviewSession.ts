@@ -52,7 +52,7 @@ export interface IRigorConditions {
 
 export interface IInterviewSession extends Document {
   userId: Types.ObjectId
-  format: 'coding' | 'system_design' | 'project_deepdive' | 'behavioural' | 'gap'
+  format: 'coding' | 'system_design' | 'project_deepdive' | 'behavioural' | 'gap' | 'pm_case' | 'design_critique' | 'ops_case' | 'sales_discovery'
   targetSkill: string
   status: 'in_progress' | 'completed' | 'abandoned'
   messages: IMessage[]
@@ -83,7 +83,7 @@ const InterviewSessionSchema = new Schema<IInterviewSession>({
   userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   format: {
     type: String,
-    enum: ['coding', 'system_design', 'project_deepdive', 'behavioural', 'gap'],
+    enum: ['coding', 'system_design', 'project_deepdive', 'behavioural', 'gap', 'pm_case', 'design_critique', 'ops_case', 'sales_discovery'],
     required: true,
   },
   targetSkill: { type: String, required: true },

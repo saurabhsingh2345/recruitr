@@ -162,6 +162,72 @@ function ScheduleModal({
   )
 }
 
+function HireModal({
+  defaultCompany,
+  defaultRole,
+  onClose,
+  onSubmit,
+}: {
+  defaultCompany: string
+  defaultRole: string
+  onClose: () => void
+  onSubmit: (company: string, role: string, salaryLPA: number) => void
+}) {
+  const [company, setCompany] = useState(defaultCompany)
+  const [role, setRole] = useState(defaultRole)
+  const [salary, setSalary] = useState('')
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div className="bg-[#0B0E1C] border border-[#1A1E3A] rounded-2xl p-6 w-full max-w-md mx-4">
+        <h3 className="font-semibold mb-1 text-[#2DE2C5] flex items-center gap-2">🎉 Mark yourself as hired</h3>
+        <p className="text-xs text-[#AEB5E0] mb-4">This signals to Intervue that the platform helped you land this role. It stays private.</p>
+        <div className="space-y-3">
+          <div>
+            <label className="text-xs text-[#AEB5E0] mb-1 block">Company</label>
+            <input
+              value={company}
+              onChange={(e) => setCompany(e.target.value)}
+              placeholder="Company name"
+              className="w-full bg-white/[0.03] border border-white/[0.08] rounded-lg px-3 py-2 text-sm text-white placeholder:text-white/25 focus:outline-none focus:border-[#2DE2C5]/40"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-[#AEB5E0] mb-1 block">Role title</label>
+            <input
+              value={role}
+              onChange={(e) => setRole(e.target.value)}
+              placeholder="e.g. Senior Frontend Engineer"
+              className="w-full bg-white/[0.03] border border-white/[0.08] rounded-lg px-3 py-2 text-sm text-white placeholder:text-white/25 focus:outline-none focus:border-[#2DE2C5]/40"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-[#AEB5E0] mb-1 block">Salary (₹ LPA, optional)</label>
+            <input
+              type="number"
+              value={salary}
+              onChange={(e) => setSalary(e.target.value)}
+              placeholder="e.g. 45"
+              className="w-full bg-white/[0.03] border border-white/[0.08] rounded-lg px-3 py-2 text-sm text-white placeholder:text-white/25 focus:outline-none focus:border-[#2DE2C5]/40"
+            />
+          </div>
+        </div>
+        <div className="flex gap-3 mt-5">
+          <Button variant="outline" onClick={onClose} className="flex-1 border-[#1A1E3A] text-[#AEB5E0] hover:text-white">
+            Cancel
+          </Button>
+          <Button
+            onClick={() => onSubmit(company, role, Number(salary) || 0)}
+            className="flex-1 bg-[#2DE2C5] text-[#05060F] hover:bg-[#1fb89e] font-semibold"
+          >
+            Confirm hire
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function OutcomeModal({
   onClose,
   onSubmit,
@@ -234,6 +300,7 @@ export default function ThreadPage() {
   const [sending, setSending] = useState(false)
   const [showScheduleModal, setShowScheduleModal] = useState(false)
   const [showOutcomeModal, setShowOutcomeModal] = useState(false)
+  const [showHireModal, setShowHireModal] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   const load = useCallback(async () => {
@@ -317,6 +384,21 @@ export default function ThreadPage() {
     }
   }
 
+  async function markHired(company: string, role: string, salaryLPA: number) {
+    const res = await fetch(`/api/applications/${id}/outcome`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ result: 'hired', hiredCompany: company, hiredRole: role, hiredSalaryLPA: salaryLPA }),
+    })
+    if (res.ok) {
+      setShowHireModal(false)
+      toast.success('🎉 Congratulations! Marked as hired.')
+      await load()
+    } else {
+      toast.error('Failed to update')
+    }
+  }
+
   function downloadCalendar() {
     if (!app?.interview?.date || !app?.interview?.time) return
     const other = app.recruiterId === currentUserId ? app.candidateInfo.name : app.recruiterInfo.name
@@ -360,6 +442,7 @@ export default function ThreadPage() {
   const canSchedule = isRecruiter && !['hired', 'rejected', 'withdrawn'].includes(app.status)
   const canRespond = !isRecruiter && app.interview?.status === 'proposed'
   const canMarkOutcome = isRecruiter && !['hired', 'rejected', 'withdrawn'].includes(app.status)
+  const canMarkHired = !isRecruiter && app.status === 'offer_extended'
 
   return (
     <div className="h-screen flex flex-col">
@@ -481,6 +564,23 @@ export default function ThreadPage() {
               </Button>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Candidate: offer extended → mark hired banner */}
+      {canMarkHired && (
+        <div className="mx-4 mt-2 p-3 rounded-xl border border-[#2DE2C5]/30 bg-[#2DE2C5]/5 flex items-center justify-between gap-3">
+          <div>
+            <div className="text-sm font-semibold text-[#2DE2C5]">🎉 Offer extended!</div>
+            <div className="text-xs text-[#AEB5E0]">Did you accept? Mark yourself as hired to track your outcome.</div>
+          </div>
+          <Button
+            size="sm"
+            onClick={() => setShowHireModal(true)}
+            className="bg-[#2DE2C5] text-[#05060F] hover:bg-[#1fb89e] font-semibold shrink-0 text-xs h-8"
+          >
+            I got hired
+          </Button>
         </div>
       )}
 
@@ -615,6 +715,14 @@ export default function ThreadPage() {
       )}
       {showOutcomeModal && (
         <OutcomeModal onClose={() => setShowOutcomeModal(false)} onSubmit={markOutcome} />
+      )}
+      {showHireModal && (
+        <HireModal
+          defaultCompany={app.recruiterInfo.company || ''}
+          defaultRole={app.jobTitle || ''}
+          onClose={() => setShowHireModal(false)}
+          onSubmit={markHired}
+        />
       )}
     </div>
   )

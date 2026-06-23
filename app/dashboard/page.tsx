@@ -13,6 +13,8 @@ import {
   GraduationCap,
   Loader2,
   Award,
+  ShieldCheck,
+  Share2,
 } from 'lucide-react'
 import { LineChart, Line, ResponsiveContainer } from 'recharts'
 import { CandidateNav } from '@/components/CandidateNav'
@@ -64,6 +66,10 @@ const FORMAT_LABELS: Record<string, string> = {
   project_deepdive: 'Project Deep-dive',
   behavioural: 'Behavioural',
   gap: 'Gap Session',
+  pm_case: 'PM Case Study',
+  design_critique: 'Design Critique',
+  ops_case: 'Ops / Program Mgmt',
+  sales_discovery: 'Sales Discovery',
 }
 
 const FORMAT_ICONS: Record<string, string> = {
@@ -72,6 +78,10 @@ const FORMAT_ICONS: Record<string, string> = {
   project_deepdive: '🔍',
   behavioural: '💬',
   gap: '⚡',
+  pm_case: '📊',
+  design_critique: '🎨',
+  ops_case: '⚙️',
+  sales_discovery: '🤝',
 }
 
 function SkillLegendRow({ name, score, evidence, scoreHistory, lastUpdated }: {
@@ -136,6 +146,24 @@ const INTERVIEW_TYPES = [
   { format: 'behavioural',     label: 'Behavioural',      icon: '💬', desc: 'STAR-based stories',       color: '#E879F9' },
 ]
 
+interface VerifiedCardProgress {
+  hasGoal: boolean
+  sessionCount: number
+  sessionsNeeded: number
+  topScore: number
+  scoreNeeded: number
+  eligible: boolean
+}
+
+interface VerifiedCardData {
+  targetRole: string
+  targetLevel: string
+  topSkills: { name: string; score: number; percentile: number }[]
+  sessionCount: number
+  issuedAt: string
+  cardToken: string
+}
+
 export default function DashboardPage() {
   const [data, setData] = useState<ProfileData | null>(null)
   const [sessions, setSessions] = useState<Session[]>([])
@@ -146,6 +174,10 @@ export default function DashboardPage() {
   const [unreadMessages, setUnreadMessages] = useState(0)
   const [companyJD, setCompanyJD] = useState<string | null>(null)
   const [onboardingDismissed, setOnboardingDismissed] = useState(false)
+  const [verifiedCard, setVerifiedCard] = useState<VerifiedCardData | null>(null)
+  const [cardProgress, setCardProgress] = useState<VerifiedCardProgress | null>(null)
+  const [issuingCard, setIssuingCard] = useState(false)
+  const [hiredOutcome, setHiredOutcome] = useState<{ company: string; role: string; hiredAt: string } | null>(null)
 
   useEffect(() => {
     const username = data?.user?.username
@@ -156,10 +188,12 @@ export default function DashboardPage() {
   useEffect(() => {
     async function load() {
       try {
-        const [meRes, sessRes, notifRes] = await Promise.all([
+        const [meRes, sessRes, notifRes, cardRes, appsRes] = await Promise.all([
           fetch('/api/me'),
           fetch('/api/sessions'),
           fetch('/api/notifications'),
+          fetch('/api/verified-card/mine'),
+          fetch('/api/applications'),
         ])
         if (meRes.ok) {
           const meData = await meRes.json()
@@ -176,6 +210,24 @@ export default function DashboardPage() {
         if (notifRes.ok) {
           const notifData = await notifRes.json()
           setUnreadMessages(notifData.count || 0)
+        }
+        if (cardRes.ok) {
+          const cardData = await cardRes.json()
+          setVerifiedCard(cardData.card || null)
+          setCardProgress(cardData.progress || null)
+        }
+        if (appsRes.ok) {
+          const appsData = await appsRes.json()
+          const hired = (appsData.applications || []).find((a: { status: string; outcome?: { result: string; hiredCompany?: string; hiredRole?: string; hiredAt?: string } }) =>
+            a.status === 'hired' && a.outcome?.result === 'hired'
+          )
+          if (hired?.outcome) {
+            setHiredOutcome({
+              company: hired.outcome.hiredCompany || hired.recruiterInfo?.company || '',
+              role: hired.outcome.hiredRole || hired.jobTitle || '',
+              hiredAt: hired.outcome.hiredAt || hired.updatedAt || '',
+            })
+          }
         }
       } catch {
         toast.error('Failed to load profile data')
@@ -217,6 +269,22 @@ export default function DashboardPage() {
       body: JSON.stringify({ openToWork: newVal }),
     })
     toast.success(newVal ? 'Visible to recruiters' : 'Hidden from recruiters')
+  }
+
+  async function issueCard() {
+    setIssuingCard(true)
+    try {
+      const res = await fetch('/api/verified-card/issue', { method: 'POST' })
+      const d = await res.json()
+      if (res.ok) {
+        setVerifiedCard(d.card)
+        toast.success('Verified card issued!')
+      } else {
+        toast.error(d.error || 'Failed to issue card')
+      }
+    } finally {
+      setIssuingCard(false)
+    }
   }
 
   const skills = data?.profile?.parsedSkills?.slice(0, 6) || []
@@ -436,6 +504,100 @@ export default function DashboardPage() {
                 </>
               )}
             </Button>
+          )}
+
+          {/* ── Verified card block ── */}
+          {!loading && (
+            verifiedCard ? (
+              <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                className="rounded-xl border border-[#2DE2C5]/20 bg-[#2DE2C5]/[0.03] overflow-hidden"
+              >
+                <div className="h-[3px] bg-[#2DE2C5]" />
+                <div className="p-4 flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-[#2DE2C5]/10 border border-[#2DE2C5]/20 flex items-center justify-center shrink-0">
+                      <ShieldCheck className="w-4.5 h-4.5 text-[#2DE2C5]" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-[#2DE2C5] tracking-wide">VERIFIED CARD</div>
+                      <div className="text-sm font-semibold">{[verifiedCard.targetLevel, verifiedCard.targetRole].filter(Boolean).join(' ')}</div>
+                      <div className="text-[11px] text-foreground/40">
+                        {verifiedCard.topSkills.slice(0, 3).map(s => `${s.name} ${s.score}`).join(' · ')}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 shrink-0">
+                    <Link href={`/verified-card/${verifiedCard.cardToken}`} target="_blank">
+                      <Button size="sm" className="bg-[#2DE2C5] text-[#05060F] hover:bg-[#1fb89e] font-semibold h-8 gap-1.5 text-xs">
+                        <Share2 className="w-3.5 h-3.5" /> Share card
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
+              </motion.div>
+            ) : cardProgress && !cardProgress.eligible ? (
+              <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 flex items-center justify-between gap-4"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-white/[0.04] border border-white/[0.06] flex items-center justify-center shrink-0">
+                    <ShieldCheck className="w-4 h-4 text-foreground/20" />
+                  </div>
+                  <div>
+                    <div className="text-xs text-foreground/40 font-semibold uppercase tracking-wide">Verified card progress</div>
+                    <div className="text-sm text-foreground/60 mt-0.5">
+                      {!cardProgress.hasGoal
+                        ? 'Set a career goal on the Atlas page to start'
+                        : cardProgress.sessionsNeeded > 0
+                        ? `${cardProgress.sessionsNeeded} more session${cardProgress.sessionsNeeded > 1 ? 's' : ''} needed`
+                        : `Top skill needs ${cardProgress.scoreNeeded} more points (currently ${cardProgress.topScore})`
+                      }
+                    </div>
+                  </div>
+                </div>
+                {cardProgress.hasGoal && (
+                  <div className="text-xs text-foreground/25 font-mono shrink-0">
+                    {cardProgress.sessionCount}/5 sessions
+                  </div>
+                )}
+              </motion.div>
+            ) : cardProgress?.eligible ? (
+              <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                className="rounded-xl border border-[#2DE2C5]/30 bg-[#2DE2C5]/[0.04] p-4 flex items-center justify-between gap-4"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-[#2DE2C5]/10 border border-[#2DE2C5]/20 flex items-center justify-center shrink-0">
+                    <ShieldCheck className="w-4 h-4 text-[#2DE2C5]" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-[#2DE2C5] tracking-wide">READY TO VERIFY</div>
+                    <div className="text-sm text-foreground/70">You qualify for a Verified Card. Issue it now.</div>
+                  </div>
+                </div>
+                <Button size="sm" onClick={issueCard} disabled={issuingCard} className="bg-[#2DE2C5] text-[#05060F] hover:bg-[#1fb89e] font-semibold h-8 shrink-0 text-xs">
+                  {issuingCard ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Issue card'}
+                </Button>
+              </motion.div>
+            ) : null
+          )}
+
+          {/* ── Hired outcome banner ── */}
+          {!loading && hiredOutcome && (
+            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+              className="rounded-xl border border-[#2DE2C5]/20 bg-[#2DE2C5]/[0.04] p-4 flex items-center gap-3"
+            >
+              <div className="text-2xl">🎉</div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-semibold text-[#2DE2C5]">Hired via Intervue</div>
+                <div className="text-xs text-foreground/50">
+                  {hiredOutcome.role}{hiredOutcome.company ? ` at ${hiredOutcome.company}` : ''}
+                  {hiredOutcome.hiredAt ? ` · ${new Date(hiredOutcome.hiredAt).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}` : ''}
+                </div>
+              </div>
+              <Link href="/messages" className="text-xs text-foreground/30 hover:text-foreground/60 transition-colors shrink-0">
+                View thread
+              </Link>
+            </motion.div>
           )}
 
           {/* ── Two-column layout ── */}

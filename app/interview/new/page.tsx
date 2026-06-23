@@ -18,6 +18,7 @@ const FORMATS = [
     desc: 'Monaco editor + AI pair programmer. Code challenges based on your actual repos.',
     duration: '30–45 min',
     color: '#2DE2C5',
+    group: 'engineering',
   },
   {
     id: 'system_design',
@@ -26,6 +27,7 @@ const FORMATS = [
     desc: 'Design complex systems with AI dialogue. Whiteboard canvas + guided discussion.',
     duration: '45–60 min',
     color: '#3FC5F0',
+    group: 'engineering',
   },
   {
     id: 'project_deepdive',
@@ -34,6 +36,7 @@ const FORMATS = [
     desc: 'Walk through your GitHub projects. The AI asks progressively deeper questions.',
     duration: '20–30 min',
     color: '#8B7CF8',
+    group: 'engineering',
   },
   {
     id: 'behavioural',
@@ -42,6 +45,7 @@ const FORMATS = [
     desc: 'STAR-based situational questions. Stories from your actual experience.',
     duration: '20–30 min',
     color: '#f59e0b',
+    group: 'engineering',
   },
   {
     id: 'gap',
@@ -50,6 +54,43 @@ const FORMATS = [
     desc: '10-minute focused drill on one skill gap. Quick, targeted, effective.',
     duration: '10 min',
     color: '#f43f5e',
+    group: 'engineering',
+  },
+  {
+    id: 'pm_case',
+    label: 'PM Case Study',
+    icon: '📊',
+    desc: 'Product scenario + structured case. Assessed on problem framing, prioritisation, metrics, and communication.',
+    duration: '30–45 min',
+    color: '#34d399',
+    group: 'non-engineering',
+  },
+  {
+    id: 'design_critique',
+    label: 'Design Critique',
+    icon: '🎨',
+    desc: 'Real UX scenario reviewed with AI. Assessed on reasoning, accessibility, systems thinking, and communication.',
+    duration: '25–35 min',
+    color: '#f472b6',
+    group: 'non-engineering',
+  },
+  {
+    id: 'ops_case',
+    label: 'Ops / Program Mgmt',
+    icon: '⚙️',
+    desc: 'Operational challenge: process design, resource allocation, risk and stakeholder management.',
+    duration: '25–35 min',
+    color: '#fb923c',
+    group: 'non-engineering',
+  },
+  {
+    id: 'sales_discovery',
+    label: 'Sales Discovery',
+    icon: '🤝',
+    desc: 'Live discovery roleplay. Assessed on questioning, objection handling, value articulation, and closing.',
+    duration: '20–30 min',
+    color: '#a78bfa',
+    group: 'non-engineering',
   },
 ]
 
@@ -126,40 +167,50 @@ export default function NewInterviewPage() {
         </motion.div>
 
         {/* Format selection */}
-        <div className="space-y-3 mb-8">
-          {FORMATS.map((format, i) => (
-            <motion.button
-              key={format.id}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.06 }}
-              onClick={() => setSelectedFormat(format.id)}
-              className={`w-full p-4 rounded-xl border text-left transition-all ${
-                selectedFormat === format.id
-                  ? 'border-[#2DE2C5]/50 bg-[#2DE2C5]/5'
-                  : 'border-[#1A1E3A] bg-[#0B0E1C] hover:border-[#2a2f52]'
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <span className="text-2xl">{format.icon}</span>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-sm">{format.label}</span>
-                    <span className="text-[10px] text-[#AEB5E0] bg-[#11142a] px-1.5 py-0.5 rounded">
-                      {format.duration}
-                    </span>
-                  </div>
-                  <p className="text-xs text-[#AEB5E0] mt-0.5">{format.desc}</p>
-                </div>
-                <div
-                  className={`w-4 h-4 rounded-full border-2 transition-all ${
-                    selectedFormat === format.id
-                      ? 'border-[#2DE2C5] bg-[#2DE2C5]'
-                      : 'border-[#1A1E3A]'
-                  }`}
-                />
+        <div className="space-y-6 mb-8">
+          {(['engineering', 'non-engineering'] as const).map((group) => (
+            <div key={group}>
+              <div className="text-[10px] font-bold uppercase tracking-widest text-[#AEB5E0] mb-2.5 px-0.5">
+                {group === 'engineering' ? 'Engineering roles' : 'Non-engineering roles'}
               </div>
-            </motion.button>
+              <div className="space-y-2">
+                {FORMATS.filter((f) => f.group === group).map((format, i) => (
+                  <motion.button
+                    key={format.id}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.06 }}
+                    onClick={() => setSelectedFormat(format.id)}
+                    className={`w-full p-4 rounded-xl border text-left transition-all ${
+                      selectedFormat === format.id
+                        ? 'bg-[#0B0E1C]'
+                        : 'border-[#1A1E3A] bg-[#0B0E1C] hover:border-[#2a2f52]'
+                    }`}
+                    style={selectedFormat === format.id ? { borderColor: format.color + '60', background: format.color + '08' } : {}}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl">{format.icon}</span>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-sm">{format.label}</span>
+                          <span className="text-[10px] text-[#AEB5E0] bg-[#11142a] px-1.5 py-0.5 rounded">
+                            {format.duration}
+                          </span>
+                        </div>
+                        <p className="text-xs text-[#AEB5E0] mt-0.5">{format.desc}</p>
+                      </div>
+                      <div
+                        className="w-4 h-4 rounded-full border-2 transition-all shrink-0"
+                        style={selectedFormat === format.id
+                          ? { borderColor: format.color, backgroundColor: format.color }
+                          : { borderColor: '#1A1E3A', backgroundColor: 'transparent' }
+                        }
+                      />
+                    </div>
+                  </motion.button>
+                ))}
+              </div>
+            </div>
           ))}
         </div>
 

@@ -14,10 +14,17 @@ export async function GET() {
 
   const [profile, sessions, activeHandshakes] = await Promise.all([
     Profile.findOne({ userId: session.user.id })
-      .select('parsedSkills targetRole')
+      .select('parsedSkills targetRole careerGoal')
       .lean() as Promise<{
         parsedSkills: { name: string; proofScore: number }[]
         targetRole: string
+        careerGoal?: {
+          targetRole: string
+          targetLevel: string
+          targetStage: string
+          targetSalaryLPA: number
+          setAt: Date
+        }
       } | null>,
     InterviewSession.find({ userId: session.user.id, status: 'completed' })
       .select('targetSkill completedAt')
@@ -105,10 +112,26 @@ export async function GET() {
     at: s.completedAt,
   }))
 
+  // If careerGoal is set, enrich the proactive insight with goal context
+  const careerGoal = profile.careerGoal?.targetRole ? profile.careerGoal : null
+
+  if (careerGoal && proactiveInsight) {
+    const goalRole = `${careerGoal.targetLevel} ${careerGoal.targetRole}`.trim()
+    const stageHint = careerGoal.targetStage && careerGoal.targetStage !== 'Any'
+      ? ` at a ${careerGoal.targetStage}`
+      : ''
+    proactiveInsight = {
+      ...proactiveInsight,
+      reason: proactiveInsight.reason === 'required_by_match' ? 'required_by_match' : 'career_goal_gap',
+      goalContext: `${goalRole}${stageHint}`,
+    } as typeof proactiveInsight & { goalContext?: string }
+  }
+
   return NextResponse.json({
     proactiveInsight,
     decayingSkills,
     recentProgress,
     pendingHandshakes: activeHandshakes.length,
+    careerGoal,
   })
 }

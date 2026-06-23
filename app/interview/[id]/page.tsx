@@ -401,7 +401,14 @@ export default function InterviewSessionPage() {
     project_deepdive: 'Project Deep-dive',
     behavioural: 'Behavioural',
     gap: 'Gap Session',
+    pm_case: 'PM Case Study',
+    design_critique: 'Design Critique',
+    ops_case: 'Ops / Program Mgmt',
+    sales_discovery: 'Sales Discovery',
   }
+
+  const NO_EDITOR_FORMATS = ['behavioural', 'pm_case', 'design_critique', 'ops_case', 'sales_discovery']
+  const hideEditor = sessionInfo ? NO_EDITOR_FORMATS.includes(sessionInfo.format) : false
 
   // Proof receipt overlay — shown after session completion before navigating to report
   if (receipt) {
@@ -553,8 +560,8 @@ export default function InterviewSessionPage() {
 
       {/* Main split */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left panel: chat or voice */}
-        <div className="w-[420px] shrink-0 border-r border-[#1A1E3A] flex flex-col">
+        {/* Left panel: chat or voice — full width when editor is hidden */}
+        <div className={`shrink-0 border-r border-[#1A1E3A] flex flex-col ${hideEditor ? 'flex-1' : 'w-[420px]'}`}>
           {mode === 'text' ? (
             <>
               <div className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -734,8 +741,8 @@ export default function InterviewSessionPage() {
           )}
         </div>
 
-        {/* Editor panel */}
-        <div className="flex-1 flex flex-col">
+        {/* Editor panel — hidden for non-coding formats */}
+        {!hideEditor && <div className="flex-1 flex flex-col">
           <div className="h-10 border-b border-[#1A1E3A] flex items-center gap-3 px-3 shrink-0">
             <Select value={language} onValueChange={handleLanguageChange}>
               <SelectTrigger className="h-7 w-36 bg-[#0B0E1C] border-[#1A1E3A] text-xs">
@@ -824,7 +831,7 @@ export default function InterviewSessionPage() {
               </div>
             )}
           </div>
-        </div>
+        </div>}
       </div>
     </div>
   )

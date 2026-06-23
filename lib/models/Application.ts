@@ -45,6 +45,10 @@ export interface IApplication extends Document {
     result: 'hired' | 'rejected' | 'withdrawn'
     notes?: string
     updatedAt: Date
+    hiredCompany?: string
+    hiredRole?: string
+    hiredSalaryLPA?: number
+    hiredAt?: Date
   }
   createdAt: Date
   updatedAt: Date
@@ -105,6 +109,10 @@ const ApplicationSchema = new Schema<IApplication>(
       result: { type: String, enum: ['hired', 'rejected', 'withdrawn'] },
       notes: String,
       updatedAt: Date,
+      hiredCompany: String,
+      hiredRole: String,
+      hiredSalaryLPA: Number,
+      hiredAt: Date,
     },
   },
   { timestamps: true }
