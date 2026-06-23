@@ -683,3 +683,29 @@ html:not(.dark) pre, html:not(.dark) code { color: #0c0a07 !important; }
 html:not(.dark) [class*="text-white\/70"] { color: #2c2a26 !important; }
 html:not(.dark) [class*="text-white\/65"] { color: #302d27 !important; }
 html:not(.dark) [class*="text-white\/55"] { color: #363330 !important; }
+
+/* Atlas / agent page — hardcoded hex text colors that are unreadable on cream */
+html:not(.dark) [class*="text-[#AEB5E0]"] { color: #3a3630 !important; }
+html:not(.dark) [class*="text-[#888FC0]"] { color: #5c5750 !important; }
+html:not(.dark) [class*="text-[#555B8A]"] { color: #706d68 !important; }
+html:not(.dark) [class*="text-[#ECF0FF]"] { color: #1e1b16 !important; }
+html:not(.dark) [class*="text-[#666]"]    { color: #706d68 !important; }
+
+/* Atlas hardcoded bg hex colors */
+html:not(.dark) [class*="bg-[#0D1020]"],
+html:not(.dark) [class*="bg-[#080A18]"] {
+  background-color: #f7f4ef !important;
+}
+
+/* Atlas input fields with dark inline bg */
+html:not(.dark) input[class*="bg-[#0D1020]"],
+html:not(.dark) textarea[class*="bg-[#0D1020]"] {
+  background-color: #ede8e0 !important;
+  color: #0c0a07 !important;
+}
+
+/* Atlas border-[#1A1E3A] already covered above, but ensure inputs too */
+html:not(.dark) input[class*="border-[#1A1E3A]"],
+html:not(.dark) textarea[class*="border-[#1A1E3A]"] {
+  border-color: rgba(30,20,5,0.25) !important;
+}

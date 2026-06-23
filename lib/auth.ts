@@ -38,45 +38,70 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
   callbacks: {
-    async signIn({ user, account, profile: githubProfile }) {
-      // Credentials (recruiter email/password): authorize() already validated the
-      // user against the DB, so allow the sign-in through.
+    async signIn({ user, account, profile: oauthProfile }) {
       if (account?.provider === 'credentials') return true
-      // Any other non-GitHub provider is not supported.
-      if (account?.provider !== 'github') return false
 
       try {
         await connectDB()
 
-        const gp = githubProfile as unknown as {
-          id: number
-          login: string
-          avatar_url: string
-          email: string
-          name: string
+        if (account?.provider === 'github') {
+          const gp = oauthProfile as unknown as {
+            id: number; login: string; avatar_url: string; email: string; name: string
+          }
+          let dbUser = await User.findOne({ githubId: String(gp.id) })
+          if (!dbUser) {
+            dbUser = await User.create({
+              githubId: String(gp.id),
+              email: user.email || `${gp.login}@github.com`,
+              name: gp.name || gp.login,
+              username: gp.login,
+              avatarUrl: gp.avatar_url,
+              role: 'candidate',
+              authProvider: 'github',
+            })
+            await Profile.create({ userId: dbUser._id, githubUsername: gp.login })
+            await ensureReferralCode(dbUser._id.toString()).catch(() => {})
+          }
+          return true
         }
 
-        let dbUser = await User.findOne({ githubId: String(gp.id) })
+        if (account?.provider === 'twitter') {
+          const tp = oauthProfile as unknown as {
+            data?: { id: string; username: string; name: string; profile_image_url?: string }
+            id?: string; username?: string; name?: string; image?: string
+          }
+          // NextAuth v5 Twitter profile shape varies — handle both
+          const twitterId = tp.data?.id || tp.id || ''
+          const twitterHandle = tp.data?.username || tp.username || ''
+          const displayName = tp.data?.name || tp.name || twitterHandle
+          const avatarUrl = tp.data?.profile_image_url || tp.image || user.image || ''
 
-        if (!dbUser) {
-          dbUser = await User.create({
-            githubId: String(gp.id),
-            email: user.email || `${gp.login}@github.com`,
-            name: gp.name || gp.login,
-            username: gp.login,
-            avatarUrl: gp.avatar_url,
-            role: 'candidate',
-          })
+          if (!twitterId) return false
 
-          await Profile.create({
-            userId: dbUser._id,
-            githubUsername: gp.login,
-          })
-          // Generate referral code for new users
-          await ensureReferralCode(dbUser._id.toString()).catch(() => {})
+          let dbUser = await User.findOne({ twitterId })
+          if (!dbUser) {
+            // Ensure unique username — Twitter handle may collide with an existing GitHub user
+            let username = twitterHandle.toLowerCase().replace(/[^a-z0-9_]/g, '')
+            const taken = await User.exists({ username })
+            if (taken) username = `${username}_x`
+
+            dbUser = await User.create({
+              twitterId,
+              email: user.email || `${twitterHandle}@twitter.com`,
+              name: displayName,
+              username,
+              avatarUrl,
+              role: 'candidate',
+              authProvider: 'twitter',
+            })
+            // Twitter users have no GitHub — githubUsername left as default ''
+            await Profile.create({ userId: dbUser._id, githubUsername: '' })
+            await ensureReferralCode(dbUser._id.toString()).catch(() => {})
+          }
+          return true
         }
 
-        return true
+        return false
       } catch (error) {
         console.error('Sign in error:', error)
         return false
@@ -87,10 +112,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (token.sub) {
         try {
           await connectDB()
-          // GitHub users: token.sub = githubId. Credentials users: token.sub = Mongo _id.
-          let dbUser = await User.findOne({ githubId: token.sub })
-          if (!dbUser && mongoose.isValidObjectId(token.sub)) {
-            dbUser = await User.findById(token.sub)
+          let dbUser = null
+          if (token.provider === 'twitter') {
+            dbUser = await User.findOne({ twitterId: token.sub })
+          } else {
+            // GitHub: token.sub = githubId; Credentials: token.sub = Mongo _id
+            dbUser = await User.findOne({ githubId: token.sub })
+            if (!dbUser && mongoose.isValidObjectId(token.sub)) {
+              dbUser = await User.findById(token.sub)
+            }
           }
           if (dbUser) {
             session.user.id = dbUser._id.toString()
@@ -105,10 +135,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return session
     },
 
-    async jwt({ token, account, profile: githubProfile }) {
-      if (account?.provider === 'github' && githubProfile) {
-        const gp = githubProfile as unknown as { id: number }
+    async jwt({ token, account, profile: oauthProfile }) {
+      if (account?.provider === 'github' && oauthProfile) {
+        const gp = oauthProfile as unknown as { id: number }
         token.sub = String(gp.id)
+        token.provider = 'github'
+        token.accessToken = account.access_token
+      }
+      if (account?.provider === 'twitter' && oauthProfile) {
+        const tp = oauthProfile as unknown as {
+          data?: { id: string }; id?: string
+        }
+        token.sub = tp.data?.id || tp.id || token.sub
+        token.provider = 'twitter'
         token.accessToken = account.access_token
       }
       return token

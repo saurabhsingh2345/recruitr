@@ -37,7 +37,8 @@ export async function runConnectionSync(userId: string): Promise<SyncResult> {
   for (const conn of user.connections as {
     source: string; handle: string; status: string; summary: string; lastSyncedAt: Date | null
   }[]) {
-    if (conn.source === 'github') continue // handled by profile/generate
+    // github → profile/generate; gitlab/twitter → dedicated settings routes
+    if (['github', 'gitlab', 'twitter'].includes(conn.source)) continue
     const res = await parseSource(conn.source, conn.handle)
     conn.status = res.ok ? 'connected' : 'error'
     conn.summary = res.summary
@@ -48,6 +49,7 @@ export async function runConnectionSync(userId: string): Promise<SyncResult> {
 
   // ── Merge signals into the verified skill set (additive, corroborating) ──
   let merged = 0
+  const now = new Date()
   for (const sig of allSignals) {
     const idx = profile.parsedSkills.findIndex(
       (s: { name: string }) => s.name.toLowerCase() === sig.name.toLowerCase()
@@ -56,16 +58,21 @@ export async function runConnectionSync(userId: string): Promise<SyncResult> {
       const skill = profile.parsedSkills[idx]
       if (!skill.evidence.includes(sig.evidenceLine)) {
         skill.evidence = [...skill.evidence, sig.evidenceLine].slice(0, 6)
-        skill.proofScore = Math.min(100, Math.round(skill.proofScore * 0.85 + sig.weight * 0.15) + 2)
-        skill.lastUpdated = new Date()
+        const newScore = Math.min(100, Math.round(skill.proofScore * 0.85 + sig.weight * 0.15) + 2)
+        skill.proofScore = newScore
+        skill.lastUpdated = now
+        if (!skill.scoreHistory) skill.scoreHistory = []
+        skill.scoreHistory.push({ score: newScore, source: sig.name.toLowerCase(), at: now })
         merged++
       }
     } else {
+      const newScore = Math.round(sig.weight)
       profile.parsedSkills.push({
         name: sig.name,
         evidence: [sig.evidenceLine],
-        proofScore: Math.round(sig.weight),
-        lastUpdated: new Date(),
+        proofScore: newScore,
+        lastUpdated: now,
+        scoreHistory: [{ score: newScore, source: sig.name.toLowerCase(), at: now }],
       })
       merged++
     }

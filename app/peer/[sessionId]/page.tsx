@@ -123,9 +123,10 @@ export default function PeerSessionPage() {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-[#04050e] text-white overflow-hidden">
+    <div className="h-screen flex overflow-hidden bg-[#04050e] text-white">
       <CandidateNav />
 
+      <div className="flex-1 flex flex-col overflow-hidden">
       {/* Header */}
       <div className="border-b border-white/[0.06] px-4 py-3 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
@@ -253,6 +254,7 @@ export default function PeerSessionPage() {
           </div>
         </div>
       )}
+      </div>
     </div>
   )
 }

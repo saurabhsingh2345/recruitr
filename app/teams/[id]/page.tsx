@@ -103,12 +103,14 @@ export default function TeamPage() {
 
   if (!team) {
     return (
-      <div className="min-h-screen bg-[#04050e] text-white">
+      <div className="h-screen flex overflow-hidden bg-[#04050e] text-white">
         <CandidateNav />
-        <div className="max-w-xl mx-auto px-4 py-32 text-center">
-          <h1 className="text-xl font-semibold mb-4">Team not found</h1>
-          <Link href="/dashboard" className="text-[#2DE2C5] text-sm hover:underline">← Dashboard</Link>
-        </div>
+        <main className="flex-1 overflow-y-auto flex items-center justify-center">
+          <div className="text-center">
+            <h1 className="text-xl font-semibold mb-4">Team not found</h1>
+            <Link href="/dashboard" className="text-[#2DE2C5] text-sm hover:underline">← Dashboard</Link>
+          </div>
+        </main>
       </div>
     )
   }
@@ -116,8 +118,9 @@ export default function TeamPage() {
   const joinUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/team/join/${team.inviteCode}`
 
   return (
-    <div className="min-h-screen bg-[#04050e] text-white">
+    <div className="h-screen flex overflow-hidden bg-[#04050e] text-white">
       <CandidateNav />
+      <main className="flex-1 overflow-y-auto">
       <div className="max-w-3xl mx-auto px-4 py-10">
 
         <Link href="/dashboard" className="flex items-center gap-1.5 text-xs text-white/30 hover:text-white/60 mb-8 transition-colors">
@@ -273,6 +276,7 @@ export default function TeamPage() {
           </div>
         )}
       </div>
+      </main>
     </div>
   )
 }

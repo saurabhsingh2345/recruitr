@@ -26,6 +26,7 @@ interface LearningPathData {
 
 interface LearningPathProps {
   skill: string
+  goal?: string
 }
 
 const typeColor: Record<string, string> = {
@@ -35,19 +36,22 @@ const typeColor: Record<string, string> = {
   docs: '#22D3EE',
 }
 
-export function LearningPath({ skill }: LearningPathProps) {
+export function LearningPath({ skill, goal }: LearningPathProps) {
   const [data, setData] = useState<LearningPathData | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
   const [expandedPhase, setExpandedPhase] = useState<number | null>(0)
 
   useEffect(() => {
     if (!skill) return
-    fetch(`/api/atlas/learning-path/${encodeURIComponent(skill)}`)
+    setLoading(true)
+    setData(null)
+    const url = `/api/atlas/learning-path/${encodeURIComponent(skill)}${goal ? `?goal=${encodeURIComponent(goal)}` : ''}`
+    fetch(url)
       .then((r) => r.json())
       .then((d) => setData(d.learningPath || null))
       .catch(() => {})
       .finally(() => setLoading(false))
-  }, [skill])
+  }, [skill, goal])
 
   if (loading) {
     return (
@@ -57,7 +61,7 @@ export function LearningPath({ skill }: LearningPathProps) {
     )
   }
 
-  if (!data) return null
+  if (!data) return <p className="text-xs text-[#888FC0]">No plan generated yet.</p>
 
   return (
     <div className="space-y-3">

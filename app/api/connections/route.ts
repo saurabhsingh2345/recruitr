@@ -11,14 +11,14 @@ export async function GET() {
 
   try {
     await connectDB()
-    const user = await User.findById(session.user.id).select('connections username').lean<{
-      connections?: unknown[]; username?: string
+    const user = await User.findById(session.user.id).select('connections username authProvider').lean<{
+      connections?: unknown[]; username?: string; authProvider?: string
     }>()
 
     const connections = user?.connections || []
-    // GitHub is implicitly connected via login
+    // Synthetic GitHub entry only for GitHub-auth users — Twitter/credentials users have no GitHub
     const hasGithub = connections.some((c) => (c as { source: string }).source === 'github')
-    if (!hasGithub && user?.username) {
+    if (!hasGithub && user?.authProvider === 'github' && user?.username) {
       connections.unshift({
         source: 'github', handle: user.username, status: 'connected',
         summary: 'Connected via login', lastSyncedAt: null,

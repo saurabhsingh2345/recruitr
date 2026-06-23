@@ -87,8 +87,12 @@ function OnboardingPageInner() {
 
   async function handleGitHubSignIn() {
     setIsLoading(true)
-    // Redirect back to /onboarding so the resume + role steps run for new users
     await signIn('github', { callbackUrl: '/onboarding' })
+  }
+
+  async function handleXSignIn() {
+    setIsLoading(true)
+    await signIn('twitter', { callbackUrl: '/onboarding' })
   }
 
   function handleFileDrop(e: React.DragEvent) {
@@ -224,12 +228,12 @@ function OnboardingPageInner() {
                 </div>
                 <h1 className="text-3xl font-bold mb-3">Build your verified profile</h1>
                 <p className="text-[#AEB5E0] mb-8 text-sm leading-relaxed">
-                  Connect GitHub to let our AI analyze your repos and build a proof-based engineering identity.
+                  Connect GitHub or X to let our AI analyze your work and build a proof-based engineering identity.
                 </p>
 
                 <div className="rounded-xl border border-[#1A1E3A] bg-[#0B0E1C] p-5 mb-6 text-left space-y-3">
                   {[
-                    'We read your public repos (never write)',
+                    'We read your public profile (never write)',
                     'Profile auto-generates in ~30 seconds',
                     'You control what&apos;s public on your profile',
                   ].map((item) => (
@@ -240,18 +244,36 @@ function OnboardingPageInner() {
                   ))}
                 </div>
 
-                <Button
-                  onClick={handleGitHubSignIn}
-                  disabled={isLoading}
-                  className="w-full bg-[#F8F9FA] text-[#05060F] hover:bg-white font-medium h-11"
-                >
-                  {isLoading ? (
-                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                  ) : (
-                    <GitBranch className="w-4 h-4 mr-2" />
-                  )}
-                  Continue with GitHub
-                </Button>
+                <div className="space-y-3">
+                  <Button
+                    onClick={handleGitHubSignIn}
+                    disabled={isLoading}
+                    className="w-full bg-[#F8F9FA] text-[#05060F] hover:bg-white font-medium h-11"
+                  >
+                    {isLoading ? (
+                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                    ) : (
+                      <GitBranch className="w-4 h-4 mr-2" />
+                    )}
+                    Continue with GitHub
+                  </Button>
+
+                  <Button
+                    onClick={handleXSignIn}
+                    disabled={isLoading}
+                    variant="outline"
+                    className="w-full border-[#1A1E3A] bg-[#0B0E1C] text-[#AEB5E0] hover:text-white hover:border-[#AEB5E0]/40 font-medium h-11"
+                  >
+                    {isLoading ? (
+                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                    ) : (
+                      <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.73-8.835L1.254 2.25H8.08l4.261 5.632 5.903-5.632Zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                      </svg>
+                    )}
+                    Continue with X
+                  </Button>
+                </div>
 
                 <p className="text-xs text-[#AEB5E0] mt-4">
                   Already have an account?{' '}

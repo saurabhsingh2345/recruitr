@@ -10,9 +10,10 @@ export interface IConnection {
 
 export interface IUser extends Document {
   githubId: string
+  twitterId: string              // for Twitter/X OAuth login
   email: string
   passwordHash: string           // for credentials (recruiter) login
-  authProvider: 'github' | 'credentials'
+  authProvider: 'github' | 'credentials' | 'twitter'
   name: string
   username: string
   avatarUrl: string
@@ -72,9 +73,10 @@ const ConnectionSchema = new Schema<IConnection>({
 
 const UserSchema = new Schema<IUser>({
   githubId: { type: String, required: false },
+  twitterId: { type: String, required: false, default: '' },
   email: { type: String, required: true },
   passwordHash: { type: String, default: '' },
-  authProvider: { type: String, enum: ['github', 'credentials'], default: 'github' },
+  authProvider: { type: String, enum: ['github', 'credentials', 'twitter'], default: 'github' },
   name: { type: String, required: true },
   username: { type: String, required: true, unique: true },
   avatarUrl: { type: String, default: '' },
@@ -126,6 +128,11 @@ const UserSchema = new Schema<IUser>({
 UserSchema.index(
   { githubId: 1 },
   { unique: true, partialFilterExpression: { githubId: { $type: 'string' } } }
+)
+
+UserSchema.index(
+  { twitterId: 1 },
+  { unique: true, partialFilterExpression: { twitterId: { $type: 'string', $ne: '' } } }
 )
 
 export const User = mongoose.models.User || mongoose.model<IUser>('User', UserSchema)

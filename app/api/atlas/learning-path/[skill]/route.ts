@@ -11,13 +11,16 @@ import { getModel } from '@/lib/groq'
 import { generateText } from 'ai'
 
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ skill: string }> }
 ) {
   const session = await auth()
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { skill } = await params
+  const { searchParams } = new URL(req.url)
+  const goal = searchParams.get('goal') || 'proficient'
+
   await connectDB()
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -30,10 +33,17 @@ export async function GET(
   const currentScore = skillData?.proofScore ?? 0
   const evidence = (skillData?.evidence || []).slice(0, 3)
 
+  const goalDescriptions: Record<string, string> = {
+    proficient: 'Proficient (70+ proof score)',
+    expert: 'Expert (85+ proof score)',
+    faang: 'FAANG-ready (interview-level depth at top-tier companies)',
+  }
+  const targetDescription = goalDescriptions[goal] || goalDescriptions['proficient']
+
   const model = await getModel()
   const { text } = await generateText({
     model,
-    maxOutputTokens: 800,
+    maxOutputTokens: 900,
     messages: [
       {
         role: 'system',
@@ -44,8 +54,9 @@ export async function GET(
         content: `Skill: ${skill}
 Current proof score: ${currentScore}/100
 Evidence of existing knowledge: ${evidence.join('; ') || 'none on record'}
+Target: ${targetDescription}
 
-Generate a learning path to reach Proficient (70+) level, or Expert (85+) if already at 70+.`,
+Generate a learning path tailored to reach the stated target. If the candidate is already at the target level, focus on interview depth and advanced topics.`,
       },
     ],
   })

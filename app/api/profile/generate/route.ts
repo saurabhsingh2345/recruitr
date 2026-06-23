@@ -67,7 +67,7 @@ ${profile.rawResumeText || 'No resume uploaded yet.'}
 
     if (parsed?.skills && parsed.skills.length > 0) {
       const now = new Date()
-      profile.parsedSkills = parsed.skills.map((s) => {
+      const incoming = parsed.skills.map((s) => {
         const score = calculateProofScore({
           evidenceCount: s.evidence?.length || 1,
           repoComplexity: s.confidence || 60,
@@ -81,6 +81,12 @@ ${profile.rawResumeText || 'No resume uploaded yet.'}
           scoreHistory: [{ score, source: 'github', at: now }],
         }
       })
+
+      // Merge: update/add GitHub-derived skills without wiping skills from other sources
+      const existing: typeof incoming = profile.parsedSkills as typeof incoming
+      const incomingNames = new Set(incoming.map((s) => s.name.toLowerCase()))
+      const preserved = existing.filter((s) => !incomingNames.has(s.name.toLowerCase()))
+      profile.parsedSkills = [...preserved, ...incoming]
     }
 
     if (parsed?.targetRole) profile.targetRole = parsed.targetRole

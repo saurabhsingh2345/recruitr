@@ -212,16 +212,18 @@ ${educationText || '(no education data)'}
     profile.updatedAt = new Date()
     await profile.save()
 
-    // Mark connection as synced
+    // Upsert connection: pull stale entry then push fresh one so it's always tracked
+    await User.findByIdAndUpdate(session.user.id, { $pull: { connections: { source: 'linkedin' } } })
     await User.findByIdAndUpdate(session.user.id, {
-      $set: {
-        'connections.$[el].status': 'connected',
-        'connections.$[el].summary': scraped.summary || `${li.experiences?.length || 0} roles`,
-        'connections.$[el].lastSyncedAt': new Date(),
-        'connections.$[el].handle': profileUrl,
+      $push: {
+        connections: {
+          source: 'linkedin',
+          handle: profileUrl,
+          status: 'connected',
+          summary: scraped.summary || `${li.experiences?.length || 0} roles`,
+          lastSyncedAt: new Date(),
+        },
       },
-    }, {
-      arrayFilters: [{ 'el.source': 'linkedin' }],
     })
 
     return NextResponse.json({

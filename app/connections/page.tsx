@@ -25,6 +25,9 @@ export default function ConnectionsPage() {
   const [connections, setConnections] = useState<Connection[]>([])
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
+  const [syncingGithub, setSyncingGithub] = useState(false)
+  const [githubSyncResult, setGithubSyncResult] = useState<{ skillsAdded: number; projectsUpdated: number; publicRepos: number; noPublicRepos?: boolean } | null>(null)
+  const [syncingTwitter, setSyncingTwitter] = useState(false)
   const [drafts, setDrafts] = useState<Record<string, string>>({})
   const [savingSource, setSavingSource] = useState<string | null>(null)
 
@@ -64,6 +67,53 @@ export default function ConnectionsPage() {
     if (res.ok) { toast.success('Disconnected'); await load() }
   }
 
+  async function syncGithub() {
+    setSyncingGithub(true)
+    setGithubSyncResult(null)
+    try {
+      const res = await fetch('/api/profile/sync/github', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) {
+        toast.error(data.error || 'GitHub sync failed')
+        return
+      }
+      if (!data.ok && data.reason === 'no_public_repos') {
+        setGithubSyncResult({ skillsAdded: 0, projectsUpdated: 0, publicRepos: 0, noPublicRepos: true })
+        toast.message('No public repos found', { description: 'Use the GitHub Actions token in Settings → Connections for private repos.' })
+        return
+      }
+      setGithubSyncResult({ skillsAdded: data.skillsAdded, projectsUpdated: data.projectsUpdated, publicRepos: data.publicRepos })
+      toast.success(`GitHub synced — ${data.skillsAdded} skills, ${data.projectsUpdated} projects`)
+      await load()
+    } catch {
+      toast.error('GitHub sync failed')
+    } finally {
+      setSyncingGithub(false)
+    }
+  }
+
+  async function syncTwitter() {
+    setSyncingTwitter(true)
+    try {
+      const res = await fetch('/api/profile/sync/twitter', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) {
+        if (data.code === 'TWITTER_NOT_CONFIGURED') {
+          toast.message('X/Twitter sync not available', { description: 'TWITTER_BEARER_TOKEN is not configured on this instance.' })
+        } else {
+          toast.error(data.error || 'X/Twitter sync failed')
+        }
+        return
+      }
+      toast.success(`X/Twitter synced — ${data.skillsAdded} skills extracted`)
+      await load()
+    } catch {
+      toast.error('X/Twitter sync failed')
+    } finally {
+      setSyncingTwitter(false)
+    }
+  }
+
   async function syncAll() {
     setSyncing(true)
     try {
@@ -87,7 +137,8 @@ export default function ConnectionsPage() {
 
   const publicSources = sources.filter((s) => s.kind === 'public')
   const oauthSources = sources.filter((s) => s.kind === 'oauth')
-  const connectedCount = connections.filter((c) => c.handle).length
+  // GitHub is always synthetic (connected via login); only count real non-github connections
+  const syncableCount = connections.filter((c) => c.handle && c.source !== 'github').length
 
   return (
     <div className="min-h-screen text-foreground">
@@ -115,7 +166,7 @@ export default function ConnectionsPage() {
               footprint across the internet into verified, evidence-backed skills.
             </p>
           </div>
-          <Button onClick={syncAll} disabled={syncing || connectedCount === 0} className="btn-supernova font-semibold shrink-0">
+          <Button onClick={syncAll} disabled={syncing || syncableCount === 0} className="btn-supernova font-semibold shrink-0">
             {syncing ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Parsing…</> : <><RefreshCw className="w-4 h-4 mr-2" />Sync all</>}
           </Button>
         </div>
@@ -135,6 +186,7 @@ export default function ConnectionsPage() {
                   const conn = connOf(s.id)
                   const color = SOURCE_COLORS[s.id] || 'rgba(255,255,255,0.4)'
                   const isGithub = s.id === 'github'
+                  const isTwitter = s.id === 'twitter'
                   return (
                     <motion.div key={s.id} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} className="p-4">
                       <div className="flex items-center gap-3 mb-1">
@@ -149,16 +201,44 @@ export default function ConnectionsPage() {
                                 <Check className="w-2.5 h-2.5 mr-0.5" /> connected
                               </Badge>
                             )}
-                            {conn?.status === 'error' && (
+                            {conn?.status === 'error' && !isGithub && (
                               <Badge className="text-[9px] bg-[#f43f5e]/15 text-[#f43f5e] border-[#f43f5e]/30">
                                 <AlertCircle className="w-2.5 h-2.5 mr-0.5" /> error
                               </Badge>
                             )}
+                            {isGithub && githubSyncResult && !githubSyncResult.noPublicRepos && (
+                              <span className="text-[10px] text-white/30">
+                                {githubSyncResult.publicRepos} public repos · {githubSyncResult.skillsAdded} skills · {githubSyncResult.projectsUpdated} projects
+                              </span>
+                            )}
                           </div>
-                          <p className="text-[11px] text-white/30">{conn?.summary || s.hint}</p>
+                          <p className="text-[11px] text-white/30">
+                            {isGithub && githubSyncResult?.noPublicRepos
+                              ? 'No public repos found — use GitHub Actions token for private repos'
+                              : conn?.summary || s.hint}
+                          </p>
                         </div>
-                        {conn?.handle && !isGithub && (
+                        {isGithub && (
+                          <Button size="sm" onClick={syncGithub} disabled={syncingGithub}
+                            className="h-7 text-[11px] bg-[#2DE2C5]/10 text-[#2DE2C5] border border-[#2DE2C5]/25 hover:bg-[#2DE2C5]/20 shrink-0">
+                            {syncingGithub ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3 mr-1" />}
+                            {syncingGithub ? 'Syncing…' : 'Re-sync'}
+                          </Button>
+                        )}
+                        {isTwitter && conn?.handle && (
+                          <Button size="sm" onClick={syncTwitter} disabled={syncingTwitter}
+                            className="h-7 text-[11px] bg-[#AEB5E0]/10 text-[#AEB5E0] border border-[#AEB5E0]/25 hover:bg-[#AEB5E0]/20 shrink-0">
+                            {syncingTwitter ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3 mr-1" />}
+                            {syncingTwitter ? 'Syncing…' : 'Sync'}
+                          </Button>
+                        )}
+                        {conn?.handle && !isGithub && !isTwitter && (
                           <button onClick={() => disconnect(s.id)} className="text-white/25 hover:text-[#f43f5e] transition-colors">
+                            <X className="w-4 h-4" />
+                          </button>
+                        )}
+                        {isTwitter && conn?.handle && (
+                          <button onClick={() => disconnect(s.id)} className="text-white/25 hover:text-[#f43f5e] transition-colors ml-1">
                             <X className="w-4 h-4" />
                           </button>
                         )}
@@ -188,26 +268,28 @@ export default function ConnectionsPage() {
             <div>
               <div className="flex items-center gap-2 mb-3">
                 <Lock className="w-4 h-4 text-white/30" />
-                <h2 className="text-[11px] font-semibold text-white/30 uppercase tracking-widest">Needs OAuth — coming soon</h2>
+                <h2 className="text-[11px] font-semibold text-white/30 uppercase tracking-widest">Sync via Settings</h2>
               </div>
               <div className="grid grid-cols-3 gap-3">
                 {oauthSources.map((s) => {
                   const color = SOURCE_COLORS[s.id] || 'rgba(255,255,255,0.4)'
+                  const isGitlab = s.id === 'gitlab'
                   return (
                     <div key={s.id} className="p-4 rounded-xl border border-white/[0.06] bg-[#0a0c1a] opacity-50">
                       <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold mb-2" style={{ background: color + '18', color }}>
                         {s.label[0]}
                       </div>
                       <div className="text-sm font-semibold">{s.label}</div>
-                      <p className="text-[10px] text-white/30 mt-0.5 leading-tight">{s.hint}</p>
+                      <p className="text-[10px] text-white/30 mt-0.5 leading-tight">
+                        {isGitlab ? 'Configure in Settings → Connections' : s.hint}
+                      </p>
                     </div>
                   )
                 })}
               </div>
               <p className="text-[11px] text-white/25 mt-3 flex items-center gap-1.5">
                 <Sparkles className="w-3 h-3 text-[#8B7CF8]" />
-                LinkedIn, X, and GitLab need an OAuth app. Once configured, Atlas pulls roles,
-                endorsements, and reach automatically.
+                GitLab syncs via Settings → Connections.
               </p>
             </div>
           </div>

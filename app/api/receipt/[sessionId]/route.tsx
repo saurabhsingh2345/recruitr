@@ -14,7 +14,7 @@ export async function GET(
   try {
     await connectDB()
     const session = await InterviewSession.findById(sessionId)
-      .select('userId format targetSkill scores scoreUpdate insightReport completedAt')
+      .select('userId format targetSkill scores scoreUpdate insightReport completedAt companyMode')
       .lean() as {
         userId: unknown
         format: string
@@ -23,6 +23,7 @@ export async function GET(
         scoreUpdate: { skill: string; before: number; after: number; delta: number }
         insightReport: { aiVerdict: string }
         completedAt: Date
+        companyMode?: { company?: string }
       } | null
 
     if (!session || !session.scores?.overall) {
@@ -92,6 +93,13 @@ export async function GET(
             <div style={{ fontSize: 18, color: '#2DD4BF', marginTop: 14 }}>
               {session.scoreUpdate.skill} {session.scoreUpdate.before} → {session.scoreUpdate.after}
               <span style={{ fontSize: 16, color: 'rgba(45,212,191,0.6)', marginLeft: '8px' }}>+{delta}</span>
+            </div>
+          )}
+
+          {/* Company badge */}
+          {session.companyMode?.company && (
+            <div style={{ fontSize: 14, color: '#2DD4BF', marginTop: 18, letterSpacing: '2px', textTransform: 'uppercase', border: '1px solid rgba(45,212,191,0.25)', padding: '4px 14px', borderRadius: '4px' }}>
+              {session.companyMode.company} prep
             </div>
           )}
 

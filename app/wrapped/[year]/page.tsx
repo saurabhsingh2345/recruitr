@@ -64,14 +64,16 @@ export default function WrappedPage() {
 
   if (!data || data.empty) {
     return (
-      <div className="min-h-screen bg-[#04050e] text-white">
+      <div className="h-screen flex overflow-hidden bg-[#04050e] text-white">
         <CandidateNav />
-        <div className="max-w-xl mx-auto px-4 py-32 text-center">
-          <div className="text-5xl mb-6">📭</div>
-          <h1 className="text-2xl font-semibold mb-3">No sessions in {year}</h1>
-          <p className="text-white/40 mb-8">Complete interviews in {year} to generate your wrapped card.</p>
-          <Link href="/dashboard" className="text-[#2DE2C5] text-sm hover:underline">← Back to dashboard</Link>
-        </div>
+        <main className="flex-1 overflow-y-auto flex items-center justify-center">
+          <div className="text-center">
+            <div className="text-5xl mb-6">📭</div>
+            <h1 className="text-2xl font-semibold mb-3">No sessions in {year}</h1>
+            <p className="text-white/40 mb-8">Complete interviews in {year} to generate your wrapped card.</p>
+            <Link href="/dashboard" className="text-[#2DE2C5] text-sm hover:underline">← Back to dashboard</Link>
+          </div>
+        </main>
       </div>
     )
   }
@@ -79,8 +81,9 @@ export default function WrappedPage() {
   const maxMonth = Math.max(...data.byMonth, 1)
 
   return (
-    <div className="min-h-screen bg-[#04050e] text-white">
+    <div className="h-screen flex overflow-hidden bg-[#04050e] text-white">
       <CandidateNav />
+      <main className="flex-1 overflow-y-auto">
       <div className="max-w-2xl mx-auto px-4 py-12">
 
         {/* Back */}
@@ -180,6 +183,7 @@ export default function WrappedPage() {
           </button>
         </div>
       </div>
+      </main>
     </div>
   )
 }

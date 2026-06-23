@@ -1,5 +1,6 @@
 import type { NextAuthConfig } from 'next-auth'
 import GitHub from 'next-auth/providers/github'
+import Twitter from 'next-auth/providers/twitter'
 
 /**
  * Edge-safe auth config — NO database imports.
@@ -15,6 +16,13 @@ export const authConfig = {
         params: { scope: 'read:user user:email public_repo' },
       },
     }),
+    // Twitter/X OAuth 2.0 — only active when TWITTER_CLIENT_ID + TWITTER_CLIENT_SECRET are set
+    ...(process.env.TWITTER_CLIENT_ID && process.env.TWITTER_CLIENT_SECRET
+      ? [Twitter({
+          clientId: process.env.TWITTER_CLIENT_ID,
+          clientSecret: process.env.TWITTER_CLIENT_SECRET,
+        })]
+      : []),
   ],
   pages: {
     signIn: '/onboarding',

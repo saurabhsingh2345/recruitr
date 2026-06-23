@@ -5,15 +5,14 @@ import Link from 'next/link'
 import { motion } from 'framer-motion'
 import {
   Play,
-  TrendingUp,
   ExternalLink,
   ChevronRight,
-  Clock,
   GitBranch,
   Flame,
   Briefcase,
   GraduationCap,
   Loader2,
+  Award,
 } from 'lucide-react'
 import { LineChart, Line, ResponsiveContainer } from 'recharts'
 import { CandidateNav } from '@/components/CandidateNav'
@@ -75,17 +74,18 @@ const FORMAT_ICONS: Record<string, string> = {
   gap: '⚡',
 }
 
-/** Compact skill legend row paired with the constellation */
-function SkillLegendRow({ name, score, evidence, scoreHistory, lastUpdated }: { name: string; score: number; evidence?: string[]; scoreHistory?: { score: number }[]; lastUpdated?: string }) {
+function SkillLegendRow({ name, score, evidence, scoreHistory, lastUpdated }: {
+  name: string; score: number; evidence?: string[]; scoreHistory?: { score: number }[]; lastUpdated?: string
+}) {
   const color = getScoreColor(score)
   const sparkData = scoreHistory && scoreHistory.length >= 2 ? scoreHistory.slice(-8) : null
   const band = scoreHistory && scoreHistory.length >= 3 ? getConfidenceBand(scoreHistory) : null
   const decay = lastUpdated ? getDecaySignal(lastUpdated) : null
   return (
     <div className="flex items-center gap-3">
-      <span className="node-dot w-2 h-2 shrink-0" style={{ background: color, boxShadow: `0 0 8px 1px ${color}99` }} />
-      <span className="text-xs text-[#ECF0FF] w-24 truncate">{name}</span>
-      <div className="flex-1 h-1.5 bg-[#11142a] rounded-full overflow-hidden">
+      <span className="node-dot w-2 h-2 shrink-0 rounded-full" style={{ background: color, boxShadow: `0 0 6px 1px ${color}80` }} />
+      <span className="text-xs text-foreground/80 w-24 truncate">{name}</span>
+      <div className="flex-1 h-1.5 bg-foreground/[0.07] rounded-full overflow-hidden">
         <div className="h-full rounded-full transition-all" style={{ width: `${score}%`, backgroundColor: color }} />
       </div>
       {sparkData ? (
@@ -102,7 +102,7 @@ function SkillLegendRow({ name, score, evidence, scoreHistory, lastUpdated }: { 
       <div className="w-10 text-right shrink-0">
         <div className="text-[11px] font-mono leading-none" style={{ color }}>{score}</div>
         {band && band.sigma > 0 && (
-          <div className="text-[9px] font-mono text-white/20 leading-none mt-0.5">±{band.sigma}</div>
+          <div className="text-[9px] font-mono text-foreground/20 leading-none mt-0.5">±{band.sigma}</div>
         )}
       </div>
       {decay && decay.level !== 'fresh' ? (
@@ -114,7 +114,7 @@ function SkillLegendRow({ name, score, evidence, scoreHistory, lastUpdated }: { 
           {decay.daysIdle}d idle
         </span>
       ) : evidence && evidence.length > 0 ? (
-        <span className="text-[9px] text-white/25 w-14 text-right hidden lg:block">
+        <span className="text-[9px] text-foreground/30 w-14 text-right hidden lg:block">
           {evidence.length} {evidence.length === 1 ? 'src' : 'sources'}
         </span>
       ) : (
@@ -129,12 +129,11 @@ function SkillLegendRow({ name, score, evidence, scoreHistory, lastUpdated }: { 
   )
 }
 
-
 const INTERVIEW_TYPES = [
-  { format: 'coding', label: 'Live Coding', icon: '⌨️', desc: 'Monaco editor + AI pair', color: '#2DE2C5' },
-  { format: 'system_design', label: 'System Design', icon: '🏗️', desc: 'Whiteboard + AI dialogue', color: '#3FC5F0' },
-  { format: 'project_deepdive', label: 'Project Deep-dive', icon: '🔍', desc: 'Walk through your repos', color: '#8B7CF8' },
-  { format: 'behavioural', label: 'Behavioural', icon: '💬', desc: 'STAR-based stories', color: '#E879F9' },
+  { format: 'coding',          label: 'Live Coding',      icon: '⌨️', desc: 'Monaco + AI pair',       color: '#2DE2C5' },
+  { format: 'system_design',   label: 'System Design',    icon: '🏗️', desc: 'Whiteboard dialogue',    color: '#3FC5F0' },
+  { format: 'project_deepdive',label: 'Deep-dive',        icon: '🔍', desc: 'Walk your repos',         color: '#8B7CF8' },
+  { format: 'behavioural',     label: 'Behavioural',      icon: '💬', desc: 'STAR-based stories',       color: '#E879F9' },
 ]
 
 export default function DashboardPage() {
@@ -149,6 +148,12 @@ export default function DashboardPage() {
   const [onboardingDismissed, setOnboardingDismissed] = useState(false)
 
   useEffect(() => {
+    const username = data?.user?.username
+    if (!username) return
+    if (localStorage.getItem(`ob_skip_${username}`)) setOnboardingDismissed(true)
+  }, [data?.user?.username])
+
+  useEffect(() => {
     async function load() {
       try {
         const [meRes, sessRes, notifRes] = await Promise.all([
@@ -158,7 +163,6 @@ export default function DashboardPage() {
         ])
         if (meRes.ok) {
           const meData = await meRes.json()
-          // Recruiters don't belong on the candidate dashboard — send them home.
           if (meData?.user?.role === 'recruiter') {
             window.location.href = '/recruiter/dashboard'
             return
@@ -224,16 +228,12 @@ export default function DashboardPage() {
     : 0
   const cohortPct = data?.profile?.cohortPercentile ?? 0
   const currentStreak = data?.user?.currentStreak ?? 0
-
   const streak = data?.user?.currentStreak ?? 0
   const openToWork = data?.user?.openToWork ?? true
 
-  // Onboarding: show modal for new users with no skills, or returning from their first session
   const showOnboarding = !loading && data !== null && data.profile.onboardingComplete !== true && !onboardingDismissed
-  // Nudge: profile is marked complete (skipped) but they haven't done any interview yet
   const showOnboardingNudge = !loading && data !== null && data.profile.onboardingComplete === true && completedSessions.length === 0
-  const isReturningFromSession =
-    showOnboarding && (data?.profile?.onboardingStep ?? 0) >= 2 && allSkills.length > 0
+  const isReturningFromSession = showOnboarding && (data?.profile?.onboardingStep ?? 0) >= 2 && allSkills.length > 0
   const topRepo = data?.profile?.projects?.[0]
     ? { name: data.profile.projects[0].repoName, language: data.profile.projects[0].language }
     : null
@@ -248,8 +248,8 @@ export default function DashboardPage() {
           <div className="space-y-1 pb-1">
             {streak > 0 && (
               <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[#8B7CF8]/[0.07] border border-[#8B7CF8]/15">
-                <Flame className={`w-3.5 h-3.5 shrink-0 ${streak >= 3 ? 'text-[#8B7CF8]' : 'text-white/25'}`} />
-                <span className="text-xs text-white/40 flex-1">Streak</span>
+                <Flame className={`w-3.5 h-3.5 shrink-0 ${streak >= 3 ? 'text-[#8B7CF8]' : 'text-foreground/25'}`} />
+                <span className="text-xs text-foreground/40 flex-1">Streak</span>
                 <span className="text-xs font-bold text-[#8B7CF8] font-mono">{streak}d</span>
               </div>
             )}
@@ -258,10 +258,10 @@ export default function DashboardPage() {
               className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs transition-all ${
                 openToWork
                   ? 'bg-[#2DE2C5]/10 text-[#2DE2C5] border border-[#2DE2C5]/20'
-                  : 'text-white/30 border border-transparent hover:bg-white/[0.03]'
+                  : 'text-foreground/35 border border-transparent hover:bg-foreground/[0.03]'
               }`}
             >
-              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${openToWork ? 'bg-[#2DE2C5] animate-pulse' : 'bg-white/20'}`} />
+              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${openToWork ? 'bg-[#2DE2C5] animate-pulse' : 'bg-foreground/20'}`} />
               {openToWork ? 'Open to work' : 'Not looking'}
             </button>
           </div>
@@ -270,17 +270,17 @@ export default function DashboardPage() {
 
       <main className="flex-1 overflow-y-auto">
         {/* Top bar */}
-        <div className="sticky top-0 z-10 border-b border-white/[0.05] bg-[#050508]/95 backdrop-blur px-4 sm:px-8 h-[56px] flex items-center justify-between">
-          <div className="text-sm text-white/35">
+        <div className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur px-4 sm:px-8 h-14 flex items-center justify-between">
+          <div className="text-sm text-foreground/40">
             {loading ? (
-              <Skeleton className="h-4 w-40 bg-white/[0.04]" />
+              <Skeleton className="h-4 w-40 bg-foreground/[0.06]" />
             ) : (
-              <>Welcome back, <span className="text-white font-medium">{data?.user?.name?.split(' ')[0]}</span></>
+              <>Welcome back, <span className="text-foreground font-medium">{data?.user?.name?.split(' ')[0]}</span></>
             )}
           </div>
           <div className="flex items-center gap-2">
             <Link href={`/p/${data?.user?.username}`} target="_blank">
-              <Button variant="ghost" size="sm" className="text-white/35 hover:text-white gap-1.5 text-xs h-8 px-3">
+              <Button variant="ghost" size="sm" className="text-foreground/35 hover:text-foreground gap-1.5 text-xs h-8 px-3">
                 <ExternalLink className="w-3.5 h-3.5" />
                 Public profile
               </Button>
@@ -288,9 +288,9 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <div className="max-w-5xl mx-auto px-4 sm:px-8 py-6 sm:py-8 space-y-8 sm:space-y-10">
+        <div className="max-w-5xl mx-auto px-4 sm:px-8 py-6 sm:py-8 space-y-8">
 
-          {/* Post-skip nudge — shown after user dismisses onboarding without completing a session */}
+          {/* Post-skip nudge */}
           {showOnboardingNudge && (
             <motion.div
               initial={{ opacity: 0, y: -8 }}
@@ -299,11 +299,11 @@ export default function DashboardPage() {
             >
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-semibold mb-0.5">Verify your skills to unlock your proof profile</div>
-                <div className="text-xs text-white/40 leading-relaxed">
-                  Take a quick interview on your top skills — it takes ~15 minutes and turns your profile from a list of keywords into verified proof scores that recruiters can trust.
+                <div className="text-xs text-foreground/45 leading-relaxed">
+                  Take a quick interview — ~15 min to turn your profile from a keyword list into verified proof scores recruiters trust.
                 </div>
               </div>
-              <div className="flex items-center gap-3 shrink-0">
+              <div className="flex items-center gap-3 shrink-0 flex-wrap">
                 {allSkills.slice(0, 3).map(s => (
                   <button
                     key={s.name}
@@ -327,115 +327,147 @@ export default function DashboardPage() {
             </motion.div>
           )}
 
-          {/* Hero: rank card + single CTA */}
-          <section className="space-y-3">
-            {loading ? (
-              <Skeleton className="h-28 w-full rounded-xl bg-white/[0.03]" />
-            ) : (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="border border-white/[0.06] rounded-xl bg-[#0a0c1a] p-6"
-              >
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                  {/* Identity */}
-                  <div className="flex items-center gap-4 min-w-0">
+          {/* ── Hero card ── */}
+          {loading ? (
+            <Skeleton className="h-36 w-full rounded-2xl bg-foreground/[0.04]" />
+          ) : (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="rounded-2xl border border-border bg-card overflow-hidden"
+            >
+              {/* Accent bar */}
+              <div className="h-[3px] bg-gradient-to-r from-[#2DE2C5] via-[#3FC5F0] to-[#8B7CF8]" />
+
+              <div className="p-5 sm:p-6">
+                <div className="flex flex-col sm:flex-row sm:items-start gap-4">
+                  {/* Avatar + identity */}
+                  <div className="flex items-center gap-4 flex-1 min-w-0">
                     <div className="relative shrink-0">
                       {data?.user?.avatarUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={data.user.avatarUrl} alt={data.user.name} className="w-12 h-12 rounded-full border border-white/[0.08]" />
+                        <img
+                          src={data.user.avatarUrl}
+                          alt={data.user.name}
+                          className="w-14 h-14 rounded-full border-2 border-border"
+                        />
                       ) : (
-                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#2DE2C5] to-[#8B7CF8] flex items-center justify-center text-[#05060F] font-bold text-lg">
+                        <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[#2DE2C5] to-[#8B7CF8] flex items-center justify-center text-[#05060F] font-bold text-xl">
                           {data?.user?.name?.[0]?.toUpperCase() || 'U'}
                         </div>
                       )}
-                      <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-[#0a0c1a] ${data?.user?.openToWork ? 'bg-[#2DE2C5]' : 'bg-white/20'}`} />
+                      <span
+                        className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-card ${
+                          data?.user?.openToWork ? 'bg-[#2DE2C5]' : 'bg-foreground/20'
+                        }`}
+                      />
                     </div>
                     <div className="min-w-0">
-                      <div className="flex items-center gap-2 mb-0.5">
-                        <h1 className="text-base font-semibold">{data?.user?.name || 'Engineer'}</h1>
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <h1 className="text-lg font-semibold leading-tight">{data?.user?.name || 'Engineer'}</h1>
                         {data?.user?.openToWork && (
-                          <span className="text-[9px] font-semibold bg-[#2DE2C5]/10 text-[#2DE2C5] border border-[#2DE2C5]/20 px-1.5 py-0.5 rounded">OPEN</span>
+                          <span className="text-[9px] font-bold bg-[#2DE2C5]/10 text-[#2DE2C5] border border-[#2DE2C5]/25 px-1.5 py-0.5 rounded tracking-wider">
+                            OPEN
+                          </span>
                         )}
                       </div>
-                      <div className="text-xs text-white/35">
+                      <div className="text-sm text-foreground/45">
                         {data?.profile?.targetRole || 'Engineer'}
-                        {data?.user?.username && <span className="text-white/20"> · @{data.user.username}</span>}
+                        {data?.user?.username && (
+                          <span className="text-foreground/25"> · @{data.user.username}</span>
+                        )}
                       </div>
                     </div>
                   </div>
 
-                  {/* Rank + share */}
-                  <div className="flex items-center gap-4 sm:shrink-0">
-                    {cohortPct > 0 && (
-                      <div className="text-right">
-                        <div className="text-[10px] text-white/25 uppercase tracking-wider mb-0.5">Your rank</div>
-                        <div className="font-mono text-3xl font-medium leading-none">
-                          Top {100 - cohortPct}%
-                        </div>
-                        <div className="text-[10px] text-white/30 mt-1">
-                          {currentStreak > 0 ? `${currentStreak}d streak · ` : ''}
-                          {completedSessions.length} sessions
-                        </div>
-                      </div>
-                    )}
-                    {data?.user?.username && (
-                      <Link href={`/p/${data.user.username}`} target="_blank">
-                        <button className="text-xs border border-white/[0.08] px-3 py-1.5 rounded-lg hover:bg-white/[0.04] transition-colors text-white/40">
-                          Share profile
-                        </button>
-                      </Link>
-                    )}
-                  </div>
+                  {/* Share */}
+                  {data?.user?.username && (
+                    <Link href={`/p/${data.user.username}`} target="_blank" className="shrink-0">
+                      <button className="text-xs border border-border px-3 py-1.5 rounded-lg hover:bg-foreground/[0.04] transition-colors text-foreground/40 hover:text-foreground/70">
+                        Share profile
+                      </button>
+                    </Link>
+                  )}
                 </div>
-              </motion.div>
-            )}
 
-            {/* Single primary CTA */}
-            {!loading && (
-              <Button
-                onClick={() => startInterview(topSkill ? 'coding' : 'gap', topSkill?.name || 'General')}
-                disabled={startingInterview}
-                className="w-full btn-supernova font-semibold h-11 text-[#05060F]"
-              >
-                {startingInterview ? (
-                  <><Loader2 className="w-4 h-4 animate-spin mr-2" />Starting…</>
-                ) : (
-                  <>
-                    <Play className="w-3.5 h-3.5 mr-2" />
-                    Start {topSkill ? 'coding' : 'gap'} session
-                    {topSkill && <span className="ml-1.5 opacity-75 text-xs">· {topSkill.name}</span>}
-                  </>
-                )}
-              </Button>
-            )}
-          </section>
+                {/* Stats row */}
+                <div className="mt-4 pt-4 border-t border-border flex items-center gap-5 flex-wrap">
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <span className="text-foreground/40">Sessions</span>
+                    <span className="font-mono font-semibold text-foreground">{completedSessions.length}</span>
+                  </div>
+                  {avgScore > 0 && (
+                    <div className="flex items-center gap-1.5 text-xs">
+                      <span className="text-foreground/40">Avg score</span>
+                      <span className="font-mono font-semibold" style={{ color: getScoreColor(avgScore) }}>{avgScore}</span>
+                    </div>
+                  )}
+                  {currentStreak > 0 && (
+                    <div className="flex items-center gap-1.5 text-xs">
+                      <Flame className="w-3.5 h-3.5 text-[#8B7CF8]" />
+                      <span className="font-mono font-semibold text-[#8B7CF8]">{currentStreak}d streak</span>
+                    </div>
+                  )}
+                  {cohortPct > 0 && (
+                    <div className="flex items-center gap-1.5 text-xs ml-auto">
+                      <Award className="w-3.5 h-3.5 text-foreground/30" />
+                      <span className="font-mono text-foreground/55 font-medium">Top {100 - cohortPct}%</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          )}
 
-          {/* Two-column layout: skills + sessions */}
+          {/* Primary CTA */}
+          {!loading && (
+            <Button
+              onClick={() => startInterview(topSkill ? 'coding' : 'gap', topSkill?.name || 'General')}
+              disabled={startingInterview}
+              className="w-full btn-supernova font-semibold h-11 text-[#05060F]"
+            >
+              {startingInterview ? (
+                <><Loader2 className="w-4 h-4 animate-spin mr-2" />Starting…</>
+              ) : (
+                <>
+                  <Play className="w-3.5 h-3.5 mr-2" />
+                  Start {topSkill ? 'coding' : 'gap'} session
+                  {topSkill && <span className="ml-1.5 opacity-60 text-xs font-normal">· {topSkill.name}</span>}
+                </>
+              )}
+            </Button>
+          )}
+
+          {/* ── Two-column layout ── */}
           <div className="grid lg:grid-cols-[1fr_380px] gap-6">
 
             {/* Left: Skill network */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <h2 className="text-[11px] font-semibold tracking-widest uppercase text-white/30">Proof-of-skill network</h2>
-                <Link href="/settings" className="text-[11px] text-white/30 hover:text-white/60 transition-colors flex items-center gap-1">
+                <h2 className="text-[11px] font-semibold tracking-widest uppercase text-foreground/35">
+                  Proof-of-skill network
+                  {avgScore > 0 && (
+                    <span className="ml-2 font-mono text-foreground/50 normal-case tracking-normal">avg {avgScore}</span>
+                  )}
+                </h2>
+                <Link href="/settings" className="text-[11px] text-foreground/30 hover:text-foreground/60 transition-colors flex items-center gap-1">
                   Manage <ChevronRight className="w-3 h-3" />
                 </Link>
               </div>
 
               {loading ? (
-                <Skeleton className="h-72 rounded-xl bg-white/[0.03]" />
+                <Skeleton className="h-72 rounded-xl bg-foreground/[0.04]" />
               ) : skills.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-white/[0.06] p-8 text-center">
-                  <GitBranch className="w-7 h-7 text-white/20 mx-auto mb-3" />
+                <div className="rounded-xl border border-dashed border-foreground/[0.10] p-8 text-center">
+                  <GitBranch className="w-7 h-7 text-foreground/20 mx-auto mb-3" />
                   <div className="text-sm font-medium mb-1">No skills detected yet</div>
-                  <div className="text-xs text-white/35 mb-4">Complete an interview to map your network</div>
+                  <div className="text-xs text-foreground/40 mb-4">Complete an interview to map your network</div>
                   <Button size="sm" className="btn-supernova font-semibold text-xs h-8" onClick={() => startInterview('gap', 'General')}>
                     Start a gap session
                   </Button>
                 </div>
               ) : (
-                <div className="rounded-xl border border-white/[0.06] bg-[#0a0c1a] p-5 space-y-4">
+                <div className="rounded-xl border border-border bg-card p-5 space-y-4">
                   <div className="flex items-center justify-center">
                     <SkillConstellation
                       skills={skills}
@@ -444,9 +476,16 @@ export default function DashboardPage() {
                       size={280}
                     />
                   </div>
-                  <div className="space-y-2.5 pt-2 border-t border-white/[0.04]">
+                  <div className="space-y-2.5 pt-2 border-t border-border">
                     {skills.map((skill) => (
-                      <SkillLegendRow key={skill.name} name={skill.name} score={skill.proofScore} evidence={skill.evidence} scoreHistory={skill.scoreHistory} />
+                      <SkillLegendRow
+                        key={skill.name}
+                        name={skill.name}
+                        score={skill.proofScore}
+                        evidence={skill.evidence}
+                        scoreHistory={skill.scoreHistory}
+                        lastUpdated={skill.lastUpdated}
+                      />
                     ))}
                   </div>
                 </div>
@@ -455,9 +494,10 @@ export default function DashboardPage() {
 
             {/* Right: Start session + recent sessions */}
             <div className="space-y-6">
+
               {/* Interview types */}
-              <div className="space-y-2">
-                <h2 className="text-[11px] font-semibold tracking-widest uppercase text-white/30">Start a session</h2>
+              <div className="space-y-2.5">
+                <h2 className="text-[11px] font-semibold tracking-widest uppercase text-foreground/35">Start a session</h2>
                 <CompanyModeToggle onJDChange={setCompanyJD} />
                 <div className="grid grid-cols-2 gap-2">
                   {INTERVIEW_TYPES.map((type) => (
@@ -465,22 +505,18 @@ export default function DashboardPage() {
                       key={type.format}
                       onClick={() => startInterview(type.format, skills[0]?.name || 'General')}
                       disabled={startingInterview}
-                      className="group p-3.5 rounded-xl border border-white/[0.06] bg-[#0a0c1a] hover:border-white/[0.12] hover:bg-[#0d1020] text-left transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                      className="group p-3.5 rounded-xl border border-border bg-card hover:bg-foreground/[0.03] text-left transition-all disabled:opacity-40 disabled:cursor-not-allowed relative overflow-hidden"
+                      style={{ borderLeftColor: type.color, borderLeftWidth: '3px' }}
                     >
-                      <div
-                        className="w-8 h-8 rounded-lg flex items-center justify-center text-sm mb-2.5"
-                        style={{ background: type.color + '12', border: `1px solid ${type.color}20` }}
-                      >
-                        {type.icon}
-                      </div>
-                      <div className="font-medium text-xs leading-tight">{type.label}</div>
-                      <div className="text-[10px] text-white/30 mt-0.5">{type.desc}</div>
+                      <div className="text-base mb-2">{type.icon}</div>
+                      <div className="font-medium text-sm leading-tight text-foreground">{type.label}</div>
+                      <div className="text-[10px] text-foreground/40 mt-0.5">{type.desc}</div>
                     </button>
                   ))}
                 </div>
               </div>
 
-              {/* Wrapped CTA — December or when sessions exist */}
+              {/* Wrapped CTA */}
               {completedSessions.length >= 3 && (() => {
                 const now = new Date()
                 const currentYear = now.getFullYear()
@@ -494,9 +530,9 @@ export default function DashboardPage() {
                     <span className="text-lg">🎁</span>
                     <div className="flex-1 min-w-0">
                       <div className="text-xs font-medium text-[#8B7CF8]">{wrappedYear} Wrapped</div>
-                      <div className="text-[10px] text-white/30">See your year in interviews</div>
+                      <div className="text-[10px] text-foreground/35">See your year in interviews</div>
                     </div>
-                    <ChevronRight className="w-3.5 h-3.5 text-white/20 shrink-0" />
+                    <ChevronRight className="w-3.5 h-3.5 text-foreground/20 shrink-0" />
                   </Link>
                 )
               })()}
@@ -504,20 +540,20 @@ export default function DashboardPage() {
               {/* Recent sessions */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-[11px] font-semibold tracking-widest uppercase text-white/30">Recent sessions</h2>
-                  <span className="text-[11px] text-white/20">{completedSessions.length} done</span>
+                  <h2 className="text-[11px] font-semibold tracking-widest uppercase text-foreground/35">Recent sessions</h2>
+                  <span className="text-[11px] text-foreground/25">{completedSessions.length} done</span>
                 </div>
 
                 {loading ? (
                   <div className="space-y-1.5">
-                    {[1, 2, 3].map((i) => <Skeleton key={i} className="h-12 rounded-lg bg-white/[0.03]" />)}
+                    {[1, 2, 3].map((i) => <Skeleton key={i} className="h-12 rounded-lg bg-foreground/[0.04]" />)}
                   </div>
                 ) : sessions.length === 0 ? (
-                  <div className="rounded-xl border border-dashed border-white/[0.05] p-5 text-center text-xs text-white/30">
+                  <div className="rounded-xl border border-dashed border-foreground/[0.08] p-5 text-center text-xs text-foreground/35">
                     No sessions yet
                   </div>
                 ) : (
-                  <div className="space-y-1">
+                  <div className="rounded-xl border border-border bg-card divide-y divide-border overflow-hidden">
                     {sessions.slice(0, 6).map((session) => {
                       const href = session.status === 'completed'
                         ? `/interview/report/${session._id}`
@@ -525,25 +561,30 @@ export default function DashboardPage() {
                         ? `/interview/${session._id}`
                         : null
                       const row = (
-                        <div key={session._id} className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-white/[0.02] transition-colors group cursor-pointer">
+                        <div
+                          key={session._id}
+                          className="flex items-center gap-3 px-4 py-3 hover:bg-foreground/[0.03] transition-colors group cursor-pointer"
+                        >
                           <div className="text-base w-6 text-center shrink-0">{FORMAT_ICONS[session.format] || '📋'}</div>
                           <div className="flex-1 min-w-0">
-                            <div className="text-xs font-medium truncate">{FORMAT_LABELS[session.format]}</div>
-                            <div className="text-[10px] text-white/25 truncate">{session.targetSkill}</div>
+                            <div className="text-xs font-medium truncate text-foreground/80">{FORMAT_LABELS[session.format]}</div>
+                            <div className="text-[10px] text-foreground/35 truncate">{session.targetSkill}</div>
                           </div>
                           {session.status === 'completed' && session.scores?.overall ? (
-                            <span className="text-xs font-mono font-bold shrink-0" style={{ color: getScoreColor(session.scores.overall) }}>
+                            <span className="text-sm font-mono font-bold shrink-0" style={{ color: getScoreColor(session.scores.overall) }}>
                               {session.scores.overall}
                             </span>
                           ) : (
                             <span className={`text-[9px] px-1.5 py-0.5 rounded shrink-0 ${
-                              session.status === 'in_progress' ? 'bg-[#8B7CF8]/15 text-[#8B7CF8]' : 'text-white/20'
+                              session.status === 'in_progress'
+                                ? 'bg-[#8B7CF8]/15 text-[#8B7CF8]'
+                                : 'text-foreground/25'
                             }`}>
                               {session.status === 'in_progress' ? 'resume' : session.status.replace('_', ' ')}
                             </span>
                           )}
                           {href && (
-                            <ChevronRight className="w-3.5 h-3.5 text-white/20 group-hover:text-white/50 transition-colors" />
+                            <ChevronRight className="w-3.5 h-3.5 text-foreground/20 group-hover:text-foreground/50 transition-colors" />
                           )}
                         </div>
                       )
@@ -555,22 +596,23 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Experience + Education in a row */}
+          {/* ── Experience + Education ── */}
           {!loading && ((data?.profile?.experiences?.length ?? 0) > 0 || (data?.profile?.educations?.length ?? 0) > 0) && (
             <div className="grid md:grid-cols-2 gap-6">
               {data?.profile?.experiences && data.profile.experiences.length > 0 && (
                 <div className="space-y-2">
-                  <h2 className="text-[11px] font-semibold tracking-widest uppercase text-white/30">Experience</h2>
-                  <div className="rounded-xl border border-white/[0.06] bg-[#0a0c1a] divide-y divide-white/[0.04]">
+                  <h2 className="text-[11px] font-semibold tracking-widest uppercase text-foreground/35">Experience</h2>
+                  <div className="rounded-xl border border-border bg-card divide-y divide-border overflow-hidden">
                     {data.profile.experiences.map((exp, i) => (
                       <div key={i} className="flex items-start gap-3 px-4 py-3.5">
                         <div className="w-7 h-7 rounded-lg bg-[#8B7CF8]/10 flex items-center justify-center shrink-0 mt-0.5">
-                          <Briefcase className="w-3 h-3 text-[#8B7CF8]" />
+                          <Briefcase className="w-3.5 h-3.5 text-[#8B7CF8]" />
                         </div>
                         <div className="min-w-0">
-                          <div className="font-medium text-sm">{exp.title}</div>
-                          <div className="text-xs text-white/40 mt-0.5">{exp.company}
-                            {exp.duration && <span className="text-white/25"> · {exp.duration}</span>}
+                          <div className="font-medium text-sm text-foreground/85">{exp.title}</div>
+                          <div className="text-xs text-foreground/45 mt-0.5">
+                            {exp.company}
+                            {exp.duration && <span className="text-foreground/30"> · {exp.duration}</span>}
                           </div>
                         </div>
                       </div>
@@ -581,16 +623,16 @@ export default function DashboardPage() {
 
               {data?.profile?.educations && data.profile.educations.length > 0 && (
                 <div className="space-y-2">
-                  <h2 className="text-[11px] font-semibold tracking-widest uppercase text-white/30">Education</h2>
-                  <div className="rounded-xl border border-white/[0.06] bg-[#0a0c1a] divide-y divide-white/[0.04]">
+                  <h2 className="text-[11px] font-semibold tracking-widest uppercase text-foreground/35">Education</h2>
+                  <div className="rounded-xl border border-border bg-card divide-y divide-border overflow-hidden">
                     {data.profile.educations.map((edu, i) => (
                       <div key={i} className="flex items-start gap-3 px-4 py-3.5">
                         <div className="w-7 h-7 rounded-lg bg-[#3FC5F0]/10 flex items-center justify-center shrink-0 mt-0.5">
-                          <GraduationCap className="w-3 h-3 text-[#3FC5F0]" />
+                          <GraduationCap className="w-3.5 h-3.5 text-[#3FC5F0]" />
                         </div>
                         <div className="min-w-0">
-                          <div className="font-medium text-sm">{edu.institution}</div>
-                          {edu.degree && <div className="text-xs text-white/40 mt-0.5">{edu.degree}</div>}
+                          <div className="font-medium text-sm text-foreground/85">{edu.institution}</div>
+                          {edu.degree && <div className="text-xs text-foreground/45 mt-0.5">{edu.degree}</div>}
                         </div>
                       </div>
                     ))}
@@ -600,15 +642,15 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* Projects */}
+          {/* ── GitHub Projects ── */}
           {!loading && data?.profile?.projects && data.profile.projects.length > 0 && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <h2 className="text-[11px] font-semibold tracking-widest uppercase text-white/30">GitHub Projects</h2>
+                <h2 className="text-[11px] font-semibold tracking-widest uppercase text-foreground/35">GitHub Projects</h2>
                 <Link
                   href={`https://github.com/${data?.user?.username}`}
                   target="_blank"
-                  className="text-[11px] text-white/30 hover:text-white/60 transition-colors flex items-center gap-1"
+                  className="text-[11px] text-foreground/30 hover:text-foreground/60 transition-colors flex items-center gap-1"
                 >
                   View all <ExternalLink className="w-3 h-3" />
                 </Link>
@@ -620,16 +662,16 @@ export default function DashboardPage() {
                     href={project.githubUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="p-4 rounded-xl border border-white/[0.06] bg-[#0a0c1a] hover:border-white/[0.12] transition-colors block group"
+                    className="p-4 rounded-xl border border-border bg-card hover:border-foreground/[0.15] transition-colors block group"
                   >
                     <div className="flex items-start justify-between gap-2 mb-2">
                       <div className="font-mono text-sm text-[#2DE2C5] truncate">{project.repoName}</div>
-                      <GitBranch className="w-3.5 h-3.5 text-white/20 shrink-0 group-hover:text-white/40 transition-colors" />
+                      <GitBranch className="w-3.5 h-3.5 text-foreground/20 shrink-0 group-hover:text-foreground/40 transition-colors" />
                     </div>
-                    <p className="text-xs text-white/35 leading-relaxed mb-3 line-clamp-2">{project.description}</p>
+                    <p className="text-xs text-foreground/40 leading-relaxed mb-3 line-clamp-2">{project.description}</p>
                     <div className="flex flex-wrap gap-1">
                       {project.techStack?.slice(0, 3).map((tech) => (
-                        <span key={tech} className="text-[10px] px-1.5 py-0.5 rounded bg-white/[0.04] text-white/30 border border-white/[0.05]">
+                        <span key={tech} className="text-[10px] px-1.5 py-0.5 rounded bg-foreground/[0.05] text-foreground/40 border border-border">
                           {tech}
                         </span>
                       ))}
@@ -639,10 +681,11 @@ export default function DashboardPage() {
               </div>
             </div>
           )}
+
+          <div className="h-4" />
         </div>
       </main>
 
-      {/* Onboarding modal — shown for new users and returning-from-first-session users */}
       {showOnboarding && data && (
         <OnboardingModal
           username={data.user.username}
@@ -652,8 +695,8 @@ export default function DashboardPage() {
           initialStep={isReturningFromSession ? 2 : 0}
           onDismiss={() => {
             setOnboardingDismissed(true)
-            // Optimistically mark complete in local state so the modal never
-            // reappears on back-navigation even before the next /api/me fetch
+            const username = data?.user?.username
+            if (username) localStorage.setItem(`ob_skip_${username}`, '1')
             setData(prev => prev ? {
               ...prev,
               profile: { ...prev.profile, onboardingComplete: true, onboardingStep: 99 },

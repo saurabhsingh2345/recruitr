@@ -60,7 +60,7 @@ export async function PATCH(req: NextRequest) {
     }
 
     const userUpdate: Record<string, unknown> = {}
-    for (const field of ['name', 'openToWork', 'company', 'jobTitle', 'companySize', 'openRoles', 'signupRef', 'signupSkill', 'signupFrom']) {
+    for (const field of ['name', 'openToWork', 'company', 'jobTitle', 'companySize', 'openRoles', 'signupRef', 'signupSkill', 'signupFrom', 'emailBriefEnabled']) {
       if (body[field] !== undefined) userUpdate[field] = body[field]
     }
     if (body.role === 'recruiter' || body.role === 'candidate') {

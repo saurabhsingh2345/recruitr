@@ -162,11 +162,13 @@ export async function POST(req: NextRequest) {
     if (analysis.targetRole && !profile.targetRole) profile.targetRole = analysis.targetRole
     await profile.save()
 
+    // Upsert: remove stale entry first to avoid duplicates on re-sync
+    await User.findByIdAndUpdate(session.user.id, { $pull: { connections: { source: 'gitlab' } } })
     await User.findByIdAndUpdate(session.user.id, {
       $push: {
         connections: {
           source: 'gitlab',
-          handle: handle,
+          handle,
           status: 'connected',
           summary: analysis.summary || `${skillsAdded} skills added from ${repos.length} repos`,
           lastSyncedAt: new Date(),

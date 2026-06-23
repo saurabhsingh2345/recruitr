@@ -81,12 +81,13 @@ export interface IProfile extends Document {
   portfolioCustomization: IPortfolioCustomization
   onboardingComplete: boolean
   onboardingStep: number   // 0=not started, 1=github, 2=session_started, 3=done
+  githubActivitySummary: string  // 1-2 sentence AI summary of recent GitHub activity; feeds Atlas context
   updatedAt: Date
 }
 
 const ProfileSchema = new Schema<IProfile>({
   userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, unique: true },
-  githubUsername: { type: String, required: true },
+  githubUsername: { type: String, default: '' },
   rawResumeText: { type: String, default: '' },
   parsedSkills: [
     {
@@ -164,6 +165,7 @@ const ProfileSchema = new Schema<IProfile>({
   },
   onboardingComplete: { type: Boolean, default: false },
   onboardingStep: { type: Number, default: 0 },
+  githubActivitySummary: { type: String, default: '' },
   updatedAt: { type: Date, default: Date.now },
 })
 

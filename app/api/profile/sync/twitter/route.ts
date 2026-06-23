@@ -1,13 +1,13 @@
 /**
- * Twitter/X profile parser scaffold.
+ * POST /api/profile/sync/twitter
  *
- * Status: blocked on OAuth — requires Twitter Developer App with elevated access.
- * The parsing logic is ready; wire up OAuth tokens to activate.
+ * Parses a candidate's X/Twitter public profile (bio + recent tweets) via
+ * Twitter API v2 Bearer Token (app-only, no OAuth required for public data).
+ * Extracts hard technical skills, merges additively into parsedSkills, and
+ * upserts the twitter connection entry.
  *
- * Required env vars (not yet set):
- *   TWITTER_CLIENT_ID     — from developer.twitter.com
- *   TWITTER_CLIENT_SECRET
- *   TWITTER_BEARER_TOKEN  — for app-only read (tweets/bio parsing)
+ * Required env var: TWITTER_BEARER_TOKEN
+ * Optional body: { handle: "@username" } — falls back to saved connection.
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -20,24 +20,24 @@ import { generateText } from 'ai'
 
 const BEARER_TOKEN = process.env.TWITTER_BEARER_TOKEN
 
-const TWITTER_AI_PROMPT = `You are analyzing a developer's Twitter/X bio and recent tweets to identify their technical skills and specialisation.
+const TWITTER_AI_PROMPT = `You are analyzing a developer's X/Twitter bio and recent tweets to extract technical skills.
 
 Return ONLY valid JSON:
 {
   "skills": [
     { "name": "skill name", "evidence": ["tweet or bio excerpt"], "confidence": 0-100 }
   ],
-  "targetRole": "role derived from content",
-  "summary": "2-3 sentence professional summary"
+  "summary": "1-2 sentence professional summary"
 }
 
 Rules:
-- Only extract hard technical skills
+- Only extract hard technical skills (languages, frameworks, tools, platforms)
 - Ignore retweets unless they show genuine expertise
-- Confidence: 80+ if they tweet code/tutorials about it, 50-70 if they mention it casually`
+- Confidence: 80+ if they tweet code/tutorials about it, 50-70 if they mention it casually
+- Skip skill if confidence < 50`
 
-async function fetchTwitterUser(username: string) {
-  if (!BEARER_TOKEN) throw new Error('TWITTER_BEARER_TOKEN is not configured')
+async function fetchTwitterProfile(username: string) {
+  if (!BEARER_TOKEN) throw new Error('TWITTER_BEARER_TOKEN not configured')
 
   const userRes = await fetch(
     `https://api.twitter.com/2/users/by/username/${encodeURIComponent(username)}?user.fields=description,public_metrics`,
@@ -51,7 +51,6 @@ async function fetchTwitterUser(username: string) {
   const userId = userData.data?.id
   if (!userId) throw new Error('Twitter user not found')
 
-  // Fetch recent tweets (last 20)
   const tweetsRes = await fetch(
     `https://api.twitter.com/2/users/${userId}/tweets?max_results=20&tweet.fields=text`,
     { headers: { Authorization: `Bearer ${BEARER_TOKEN}` } }
@@ -59,8 +58,8 @@ async function fetchTwitterUser(username: string) {
   const tweetsData = tweetsRes.ok ? await tweetsRes.json() : { data: [] }
 
   return {
-    bio: userData.data?.description || '',
-    tweets: (tweetsData.data || []).map((t: { text: string }) => t.text).join('\n'),
+    bio: (userData.data?.description || '') as string,
+    tweets: ((tweetsData.data || []) as { text: string }[]).map((t) => t.text).join('\n'),
   }
 }
 
@@ -76,13 +75,26 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { twitterUsername } = await req.json()
-    if (!twitterUsername?.trim()) {
-      return NextResponse.json({ error: 'twitterUsername is required' }, { status: 400 })
+    await connectDB()
+
+    // Resolve handle from body or from saved connection
+    let handle: string | undefined
+    try {
+      const body = await req.json()
+      handle = body.handle?.replace(/^@/, '').trim()
+    } catch { /* no body */ }
+
+    if (!handle) {
+      const dbUser = await User.findById(session.user.id).select('connections')
+      const saved = dbUser?.connections?.find((c: { source: string; handle: string }) => c.source === 'twitter')
+      handle = saved?.handle?.replace(/^@/, '').trim()
     }
 
-    const handle = twitterUsername.replace(/^@/, '').trim()
-    const { bio, tweets } = await fetchTwitterUser(handle)
+    if (!handle) {
+      return NextResponse.json({ error: 'No Twitter handle saved. Connect your handle first.' }, { status: 400 })
+    }
+
+    const { bio, tweets } = await fetchTwitterProfile(handle)
 
     const { text: raw } = await generateText({
       model: await getModel(),
@@ -90,55 +102,53 @@ export async function POST(req: NextRequest) {
       maxOutputTokens: 800,
     })
 
-    let analysis: {
-      skills?: { name: string; evidence: string[]; confidence: number }[]
-      targetRole?: string
-      summary?: string
-    }
+    let analysis: { skills?: { name: string; evidence: string[]; confidence: number }[]; summary?: string }
     try {
       const jsonMatch = raw.match(/\{[\s\S]*\}/)
       analysis = JSON.parse(jsonMatch?.[0] || '{}')
     } catch {
-      return NextResponse.json({ error: 'Failed to parse Twitter profile analysis' }, { status: 500 })
+      return NextResponse.json({ error: 'Failed to parse AI response' }, { status: 500 })
     }
-
-    await connectDB()
 
     const profile = await Profile.findOne({ userId: session.user.id })
     if (!profile) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
 
-    let skillsAdded = 0
-    for (const skill of analysis.skills || []) {
-      if (!skill.name || skill.confidence < 50) continue
-      const existing = profile.parsedSkills.find(
-        (s: { name: string }) => s.name.toLowerCase() === skill.name.toLowerCase()
-      )
-      if (!existing) {
-        profile.parsedSkills.push({
-          name: skill.name,
-          evidence: skill.evidence || [],
-          proofScore: Math.round(skill.confidence * 0.5),
-          lastUpdated: new Date(),
-        })
-        skillsAdded++
-      }
-    }
-
+    // Additive skill merge — preserve skills from all other sources
+    const incoming = (analysis.skills || []).filter((s) => s.name && s.confidence >= 50)
+    const incomingNames = new Set(incoming.map((s) => s.name.toLowerCase()))
+    const preserved = (profile.parsedSkills as { name: string }[]).filter(
+      (s) => !incomingNames.has(s.name.toLowerCase())
+    )
+    const now = new Date()
+    const merged = incoming.map((s) => ({
+      name: s.name,
+      evidence: s.evidence || [],
+      proofScore: Math.round(s.confidence * 0.5),
+      lastUpdated: now,
+      scoreHistory: [{ score: Math.round(s.confidence * 0.5), source: 'twitter', at: now }],
+    }))
+    profile.parsedSkills = [...preserved, ...merged]
     await profile.save()
 
+    const summary = analysis.summary || `${merged.length} skills extracted from X/Twitter`
+
+    // Upsert connection — pull old entry then push fresh (prevents duplicates)
+    await User.findByIdAndUpdate(session.user.id, {
+      $pull: { connections: { source: 'twitter' } },
+    })
     await User.findByIdAndUpdate(session.user.id, {
       $push: {
         connections: {
           source: 'twitter',
           handle: `@${handle}`,
           status: 'connected',
-          summary: analysis.summary || `${skillsAdded} skills extracted`,
-          lastSyncedAt: new Date(),
+          summary,
+          lastSyncedAt: now,
         },
       },
     })
 
-    return NextResponse.json({ success: true, skillsAdded, summary: analysis.summary })
+    return NextResponse.json({ ok: true, skillsAdded: merged.length, summary })
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Twitter sync failed'
     return NextResponse.json({ error: msg }, { status: 500 })

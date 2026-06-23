@@ -29,6 +29,10 @@ export default auth((req) => {
     '/messages',
     '/agent',
     '/connections',
+    '/peer',
+    '/briefs',
+    '/teams',
+    '/wrapped',
   ]
 
   const isRecruiterRoute = recruiterProtected.some((r) => pathname.startsWith(r))
@@ -55,6 +59,10 @@ export const config = {
     '/messages/:path*',
     '/agent/:path*',
     '/connections/:path*',
+    '/peer/:path*',
+    '/briefs/:path*',
+    '/teams/:path*',
+    '/wrapped/:path*',
     '/recruiter/dashboard/:path*',
     '/recruiter/pipeline/:path*',
     '/recruiter/outreach/:path*',

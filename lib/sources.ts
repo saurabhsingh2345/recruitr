@@ -36,8 +36,8 @@ export const SOURCES: SourceMeta[] = [
   { id: 'stackoverflow', label: 'Stack Overflow',  kind: 'public', placeholder: 'user id (e.g. 1234567)', hint: 'Reputation, top tags, answer quality' },
   { id: 'devto',         label: 'DEV.to',          kind: 'public', placeholder: 'username',        hint: 'Articles, topics, engagement' },
   { id: 'hackernews',    label: 'Hacker News',     kind: 'public', placeholder: 'username',        hint: 'Karma, community presence' },
-  { id: 'twitter',       label: 'X / Twitter',     kind: 'oauth',  placeholder: 'handle',          hint: 'Technical threads, reach — needs OAuth app' },
-  { id: 'gitlab',        label: 'GitLab',          kind: 'oauth',  placeholder: 'username',        hint: 'Repos, MRs — needs OAuth app' },
+  { id: 'twitter',       label: 'X / Twitter',     kind: 'public', placeholder: '@handle',          hint: 'Technical threads, bio — extracts skills via AI' },
+  { id: 'gitlab',        label: 'GitLab',          kind: 'oauth',  placeholder: 'username',        hint: 'Repos, MRs — configure in Settings → Connections' },
 ]
 
 const TIMEOUT = 8000

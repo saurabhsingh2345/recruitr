@@ -69,8 +69,9 @@ export default function FindPeerPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#04050e] text-white">
+    <div className="h-screen flex overflow-hidden bg-[#04050e] text-white">
       <CandidateNav />
+      <main className="flex-1 overflow-y-auto">
       <div className="max-w-xl mx-auto px-4 py-12">
 
         <Link href="/dashboard" className="flex items-center gap-1.5 text-xs text-white/30 hover:text-white/60 mb-8 transition-colors">
@@ -169,6 +170,7 @@ export default function FindPeerPage() {
           )}
         </button>
       </div>
+      </main>
     </div>
   )
 }

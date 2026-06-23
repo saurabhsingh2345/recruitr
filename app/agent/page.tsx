@@ -142,6 +142,7 @@ export default function AgentPage() {
   const [showHandshakes, setShowHandshakes] = useState(true)
   const [expandedHs, setExpandedHs] = useState<string | null>(null)
   const [learningSkill, setLearningSkill] = useState<string | null>(null)
+  const [learningGoal, setLearningGoal] = useState<string>('proficient')
   const [rightTab, setRightTab] = useState<RightTab>('skills')
 
   // Chat state
@@ -167,7 +168,7 @@ export default function AgentPage() {
         dealbreakers: user.preferences.dealbreakers || [],
       })
       if (user?.discoverability) setDiscoverability(user.discoverability)
-      if (profile?.parsedSkills) setSkills(profile.parsedSkills.slice(0, 5))
+      if (profile?.parsedSkills) setSkills(profile.parsedSkills)
     }
     if (ctxRes.ok) {
       const ctx = await ctxRes.json()
@@ -553,12 +554,7 @@ export default function AgentPage() {
           {RIGHT_TABS.map((tab) => (
             <button
               key={tab.id}
-              onClick={() => {
-                setRightTab(tab.id)
-                if (tab.id === 'learning' && !learningSkill && skills[0]) {
-                  setLearningSkill(skills[0].name)
-                }
-              }}
+              onClick={() => setRightTab(tab.id)}
               className={`flex-1 py-2.5 text-xs font-medium transition-colors border-b-2 ${
                 rightTab === tab.id
                   ? 'text-[#2DE2C5] border-[#2DE2C5]'
@@ -572,49 +568,85 @@ export default function AgentPage() {
 
         {/* Tab content */}
         <div className="flex-1 overflow-y-auto p-5">
-          {rightTab === 'skills' && (
-            <>
-              <SkillUnlockPath
-                onStartSession={(skill, format) => {
-                  setLearningSkill(skill)
-                  window.location.href = `/interview/new?skill=${encodeURIComponent(skill)}&format=${format}`
-                }}
-              />
-              <MemoryInsights />
-              <div className="mt-4 pt-4 border-t border-white/[0.05]">
-                <Link
-                  href="/briefs"
-                  className="flex items-center gap-2 text-xs text-white/30 hover:text-[#8B7CF8] transition-colors"
-                >
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#8B7CF8]/50" />
-                  View weekly brief archive
-                </Link>
-              </div>
-            </>
-          )}
-          {rightTab === 'market' && <MarketFeed />}
-          {rightTab === 'learning' && (
-            <div>
-              {learningSkill ? (
-                <LearningPath skill={learningSkill} />
-              ) : skills.length > 0 ? (
+          <div className={rightTab === 'skills' ? '' : 'hidden'}>
+            <SkillUnlockPath
+              onStartSession={(skill, format) => {
+                setLearningSkill(skill)
+                window.location.href = `/interview/new?skill=${encodeURIComponent(skill)}&format=${format}`
+              }}
+            />
+            <MemoryInsights />
+            <div className="mt-4 pt-4 border-t border-white/[0.05]">
+              <Link
+                href="/briefs"
+                className="flex items-center gap-2 text-xs text-white/30 hover:text-[#8B7CF8] transition-colors"
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-[#8B7CF8]/50" />
+                View weekly brief archive
+              </Link>
+            </div>
+          </div>
+
+          <div className={rightTab === 'market' ? '' : 'hidden'}>
+            <MarketFeed />
+          </div>
+
+          <div className={rightTab === 'learning' ? '' : 'hidden'}>
+            {skills.length === 0 ? (
+              <p className="text-xs text-[#888FC0]">Complete an interview session to unlock learning paths.</p>
+            ) : (
+              <div className="space-y-4">
+                {/* Skill picker — all skills */}
                 <div>
-                  <p className="text-xs text-[#AEB5E0] mb-3">Select a skill to generate a learning plan:</p>
+                  <div className="text-[10px] text-[#888FC0] uppercase tracking-widest font-semibold mb-2">Choose a skill</div>
                   <div className="flex flex-wrap gap-2">
                     {skills.map((s) => (
                       <button key={s.name} onClick={() => setLearningSkill(s.name)}
-                        className="text-xs px-3 py-1.5 rounded-lg border border-white/[0.08] text-[#AEB5E0] hover:border-[#2DE2C5]/40 hover:text-[#2DE2C5] transition-colors">
+                        className={`text-xs px-3 py-1.5 rounded-lg border transition-all ${
+                          learningSkill === s.name
+                            ? 'border-[#A78BFA]/50 bg-[#A78BFA]/10 text-[#A78BFA]'
+                            : 'border-white/[0.08] text-[#AEB5E0] hover:border-[#2DE2C5]/40 hover:text-[#2DE2C5]'
+                        }`}>
                         {s.name}
+                        <span className="ml-1.5 font-mono opacity-60">{s.proofScore}</span>
                       </button>
                     ))}
                   </div>
                 </div>
-              ) : (
-                <p className="text-xs text-[#888FC0]">Complete an interview session to unlock learning paths.</p>
-              )}
-            </div>
-          )}
-          {rightTab === 'negotiate' && <NegotiationCoach />}
+
+                {/* Goal selector */}
+                <div>
+                  <div className="text-[10px] text-[#888FC0] uppercase tracking-widest font-semibold mb-2">Target goal</div>
+                  <div className="flex gap-2 flex-wrap">
+                    {[
+                      { id: 'proficient', label: 'Proficient (70+)' },
+                      { id: 'expert', label: 'Expert (85+)' },
+                      { id: 'faang', label: 'FAANG-ready' },
+                    ].map((g) => (
+                      <button key={g.id} onClick={() => setLearningGoal(g.id)}
+                        className={`text-xs px-3 py-1.5 rounded-lg border transition-all ${
+                          learningGoal === g.id
+                            ? 'border-[#2DE2C5]/50 bg-[#2DE2C5]/10 text-[#2DE2C5]'
+                            : 'border-white/[0.08] text-[#AEB5E0] hover:border-white/20'
+                        }`}>
+                        {g.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {learningSkill ? (
+                  <LearningPath skill={learningSkill} goal={learningGoal} />
+                ) : (
+                  <p className="text-xs text-[#888FC0]">Select a skill above to generate your learning plan.</p>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className={rightTab === 'negotiate' ? '' : 'hidden'}>
+            <NegotiationCoach />
+          </div>
         </div>
       </div>
 

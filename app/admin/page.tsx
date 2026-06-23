@@ -46,25 +46,28 @@ export default function AdminPage() {
   )
 
   if (forbidden) return (
-    <div className="min-h-screen bg-[#04050e] text-white">
+    <div className="h-screen flex overflow-hidden bg-[#04050e] text-white">
       <CandidateNav />
-      <div className="max-w-xl mx-auto px-4 py-32 text-center">
-        <h1 className="text-xl font-semibold mb-2">Access denied</h1>
-        <p className="text-sm text-white/40">This page is restricted to admins.</p>
-      </div>
+      <main className="flex-1 overflow-y-auto flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-xl font-semibold mb-2">Access denied</h1>
+          <p className="text-sm text-white/40">This page is restricted to admins.</p>
+        </div>
+      </main>
     </div>
   )
 
   if (!stats) return (
-    <div className="min-h-screen bg-[#04050e] text-white">
+    <div className="h-screen flex overflow-hidden bg-[#04050e] text-white">
       <CandidateNav />
-      <div className="max-w-xl mx-auto px-4 py-32 text-center text-white/40">Failed to load stats.</div>
+      <main className="flex-1 overflow-y-auto flex items-center justify-center text-white/40">Failed to load stats.</main>
     </div>
   )
 
   return (
-    <div className="min-h-screen bg-[#04050e] text-white">
+    <div className="h-screen flex overflow-hidden bg-[#04050e] text-white">
       <CandidateNav />
+      <main className="flex-1 overflow-y-auto">
       <div className="max-w-5xl mx-auto px-4 py-10">
         <div className="mb-8">
           <h1 className="text-2xl font-bold mb-1">Growth dashboard</h1>
@@ -176,6 +179,7 @@ export default function AdminPage() {
           </div>
         </div>
       </div>
+      </main>
     </div>
   )
 }

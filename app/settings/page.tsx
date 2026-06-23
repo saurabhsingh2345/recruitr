@@ -23,6 +23,7 @@ import { toast } from 'sonner'
 interface ProfileSettings {
   name: string; bio: string; location: string; targetRole: string
   yearsOfExperience: number; isPublic: boolean; username: string; githubUsername: string
+  onboardingComplete: boolean
 }
 
 interface PortfolioProject {
@@ -396,6 +397,7 @@ export default function SettingsPage() {
   const [settings, setSettings] = useState<ProfileSettings>({
     name: '', bio: '', location: '', targetRole: '',
     yearsOfExperience: 0, isPublic: true, username: '', githubUsername: '',
+    onboardingComplete: false,
   })
   const [portfolioProjects, setPortfolioProjects] = useState<PortfolioProject[]>([])
   const [portfolioTheme, setPortfolioTheme] = useState<PortfolioTheme>('minimal')
@@ -404,12 +406,16 @@ export default function SettingsPage() {
     socialLinks: [],
     showSkills: true, showExperience: true, showProjects: true, showEducation: true,
   })
+  const [emailBriefEnabled, setEmailBriefEnabled] = useState(true)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [generatingProfile, setGeneratingProfile] = useState(false)
   const [gitlabHandle, setGitlabHandle] = useState('')
   const [gitlabStatus, setGitlabStatus] = useState<'idle' | 'syncing' | 'ok' | 'error'>('idle')
   const [gitlabMsg, setGitlabMsg] = useState('')
+  const [twitterHandle, setTwitterHandle] = useState('')
+  const [twitterStatus, setTwitterStatus] = useState<'idle' | 'syncing' | 'ok' | 'error'>('idle')
+  const [twitterMsg, setTwitterMsg] = useState('')
   const [linkedinUrl, setLinkedinUrl] = useState('')
   const [linkedinStatus, setLinkedinStatus] = useState<'idle' | 'syncing' | 'ok' | 'error'>('idle')
   const [linkedinMsg, setLinkedinMsg] = useState('')
@@ -444,7 +450,9 @@ export default function SettingsPage() {
             yearsOfExperience: profile?.yearsOfExperience || 0,
             isPublic: profile?.isPublic ?? true,
             username: user?.username || '', githubUsername: user?.username || '',
+            onboardingComplete: profile?.onboardingComplete === true,
           })
+          if (typeof user?.emailBriefEnabled === 'boolean') setEmailBriefEnabled(user.emailBriefEnabled)
           if (profile?.portfolioProjects?.length) setPortfolioProjects(profile.portfolioProjects)
           if (profile?.portfolioTheme) setPortfolioTheme(profile.portfolioTheme)
           if (profile?.portfolioCustomization) setCustomization(c => ({ ...c, ...profile.portfolioCustomization }))
@@ -452,6 +460,8 @@ export default function SettingsPage() {
           if (li?.handle) { setLinkedinUrl(li.handle); setLinkedinStatus('ok'); setLinkedinMsg(li.summary || 'Previously synced') }
           const gl = (user?.connections || []).find((c: { source: string }) => c.source === 'gitlab')
           if (gl?.handle) { setGitlabHandle(gl.handle); setGitlabStatus('ok'); setGitlabMsg(gl.summary || 'Previously synced') }
+          const tw = (user?.connections || []).find((c: { source: string }) => c.source === 'twitter')
+          if (tw?.handle) { setTwitterHandle(tw.handle); setTwitterStatus('ok'); setTwitterMsg(tw.summary || 'Previously synced') }
           if (user?.lastSyncAt) setLastSyncAt(user.lastSyncAt)
           if (user?.authProvider) setAuthProvider(user.authProvider)
         }
@@ -573,6 +583,32 @@ export default function SettingsPage() {
         toast.error(data.error || 'GitLab sync failed')
       }
     } catch { setGitlabStatus('error'); setGitlabMsg('Network error') }
+  }
+
+  async function handleTwitterSync() {
+    if (!twitterHandle.trim()) { toast.error('Enter your X/Twitter handle'); return }
+    setTwitterStatus('syncing')
+    try {
+      const res = await fetch('/api/profile/sync/twitter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ handle: twitterHandle.trim().replace(/^@/, '') }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setTwitterStatus('ok')
+        setTwitterMsg(`Synced — ${data.skillsAdded} skills extracted`)
+        toast.success('X/Twitter synced!')
+      } else if (data.code === 'TWITTER_NOT_CONFIGURED') {
+        setTwitterStatus('error')
+        setTwitterMsg('Not configured — TWITTER_BEARER_TOKEN required')
+        toast.message('X/Twitter sync not available', { description: 'Set TWITTER_BEARER_TOKEN to enable.' })
+      } else {
+        setTwitterStatus('error')
+        setTwitterMsg(data.error || 'Sync failed')
+        toast.error(data.error || 'X/Twitter sync failed')
+      }
+    } catch { setTwitterStatus('error'); setTwitterMsg('Network error') }
   }
 
   async function handleChangePassword() {
@@ -826,6 +862,38 @@ export default function SettingsPage() {
                 {/* ── Profile ── */}
                 {activeTab === 'profile' && (
                   <>
+                    {!settings.onboardingComplete && (
+                      <div className="mt-6 mb-2 rounded-xl border border-[#2DE2C5]/20 bg-[#2DE2C5]/[0.04] p-4 flex items-start gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-[#2DE2C5]/10 flex items-center justify-center shrink-0 mt-0.5">
+                          <Zap className="w-4 h-4 text-[#2DE2C5]" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-semibold text-foreground mb-0.5">Complete your profile</div>
+                          <p className="text-xs text-foreground/50 leading-relaxed">
+                            Take your first interview session to build verified proof scores from your actual code — not self-reported skills. Takes about 10 minutes.
+                          </p>
+                          <div className="flex items-center gap-3 mt-3">
+                            <a
+                              href="/interview/new"
+                              className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-[#2DE2C5] text-[#04050e] hover:bg-[#1fb89e] transition-colors"
+                            >
+                              Start first interview →
+                            </a>
+                            <button
+                              onClick={async () => {
+                                await fetch('/api/onboarding/skip', { method: 'POST' })
+                                setSettings(s => ({ ...s, onboardingComplete: true }))
+                                if (settings.username) localStorage.setItem(`ob_skip_${settings.username}`, '1')
+                              }}
+                              className="text-xs text-foreground/30 hover:text-foreground/60 transition-colors"
+                            >
+                              Dismiss
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     <Section title="Basic info" desc="Your name, role, and where you're based.">
                       <div className="grid grid-cols-2 gap-4">
                         <div>
@@ -962,6 +1030,40 @@ export default function SettingsPage() {
                           <div className={`flex items-center gap-2 text-xs ${gitlabStatus === 'ok' ? 'text-[#2DE2C5]' : 'text-[#FB7185]'}`}>
                             {gitlabStatus === 'ok' ? <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> : <AlertCircle className="w-3.5 h-3.5 shrink-0" />}
                             {gitlabMsg}
+                          </div>
+                        )}
+                      </div>
+                    </Section>
+
+                    <Section title="X / Twitter" desc="Extract technical skills from your bio and recent tweets via Twitter API v2.">
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-3 mb-1">
+                          <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: '#1DA1F2' + '20' }}>
+                            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="#1DA1F2">
+                              <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.73-8.835L1.254 2.25H8.08l4.261 5.632 5.903-5.632Zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                            </svg>
+                          </div>
+                          <div className="text-sm font-medium">X / Twitter handle</div>
+                          {twitterStatus === 'ok' && <span className="ml-auto text-[10px] px-2 py-0.5 rounded bg-[#2DE2C5]/10 text-[#2DE2C5] font-semibold">Connected</span>}
+                        </div>
+                        <div className="flex gap-2">
+                          <Input
+                            value={twitterHandle}
+                            onChange={e => { setTwitterHandle(e.target.value); setTwitterStatus('idle') }}
+                            placeholder="@yourhandle"
+                            onKeyDown={e => e.key === 'Enter' && handleTwitterSync()}
+                            className="flex-1 bg-foreground/[0.03] border-foreground/[0.08] text-foreground placeholder:text-foreground/20 text-sm"
+                          />
+                          <Button onClick={handleTwitterSync} disabled={twitterStatus === 'syncing' || !twitterHandle.trim()}
+                            className="btn-supernova font-semibold shrink-0">
+                            {twitterStatus === 'syncing' ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : <RefreshCw className="w-4 h-4 mr-1.5" />}
+                            {twitterStatus === 'syncing' ? 'Syncing…' : 'Sync'}
+                          </Button>
+                        </div>
+                        {twitterStatus !== 'idle' && twitterMsg && (
+                          <div className={`flex items-center gap-2 text-xs ${twitterStatus === 'ok' ? 'text-[#2DE2C5]' : 'text-[#FB7185]'}`}>
+                            {twitterStatus === 'ok' ? <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> : <AlertCircle className="w-3.5 h-3.5 shrink-0" />}
+                            {twitterMsg}
                           </div>
                         )}
                       </div>
@@ -1142,20 +1244,48 @@ jobs:
                 {activeTab === 'notifications' && (
                   <Section title="Email notifications" desc="Choose what Intervue emails you about.">
                     <div className="space-y-2">
+                      {/* Static toggles — DB fields not yet wired; shown as always-on for clarity */}
                       {[
-                        { key: 'reminders', label: 'Interview reminders',   desc: "Reminder when you haven't practiced in 7 days",   on: true },
-                        { key: 'views',     label: 'Recruiter views',       desc: 'When a recruiter views your profile',             on: true },
-                        { key: 'scores',    label: 'Score milestones',      desc: 'When your proof scores hit new highs',            on: true },
-                        { key: 'digest',    label: 'Weekly digest',         desc: 'Weekly summary of your progress and activity',    on: false },
+                        { key: 'reminders', label: 'Interview reminders',   desc: "Reminder when you haven't practised in 7 days" },
+                        { key: 'views',     label: 'Recruiter views',       desc: 'When a recruiter views your profile' },
+                        { key: 'scores',    label: 'Score milestones',      desc: 'When your proof scores hit new highs' },
                       ].map(item => (
                         <div key={item.key} className="flex items-center justify-between px-4 py-3.5 rounded-xl bg-foreground/[0.03] border border-foreground/[0.05]">
                           <div>
                             <div className="text-sm font-medium">{item.label}</div>
                             <div className="text-xs text-foreground/40 mt-0.5">{item.desc}</div>
                           </div>
-                          <Toggle on={item.on} onToggle={() => {}} />
+                          <Toggle on={true} onToggle={() => {}} />
                         </div>
                       ))}
+
+                      {/* Weekly Atlas brief — live-saved */}
+                      <div className="flex items-center justify-between px-4 py-3.5 rounded-xl bg-foreground/[0.03] border border-foreground/[0.05]">
+                        <div>
+                          <div className="text-sm font-medium">Weekly Atlas brief</div>
+                          <div className="text-xs text-foreground/40 mt-0.5">
+                            Personalised career summary from Atlas every Monday morning
+                          </div>
+                        </div>
+                        <Toggle
+                          on={emailBriefEnabled}
+                          onToggle={async () => {
+                            const next = !emailBriefEnabled
+                            setEmailBriefEnabled(next)
+                            try {
+                              await fetch('/api/me', {
+                                method: 'PATCH',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ emailBriefEnabled: next }),
+                              })
+                              toast.success(next ? 'Weekly brief enabled' : 'Weekly brief disabled')
+                            } catch {
+                              setEmailBriefEnabled(!next)
+                              toast.error('Failed to update preference')
+                            }
+                          }}
+                        />
+                      </div>
                     </div>
                   </Section>
                 )}

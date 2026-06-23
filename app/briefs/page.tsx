@@ -40,8 +40,9 @@ export default function BriefsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#04050e] text-white">
+    <div className="h-screen flex overflow-hidden bg-[#04050e] text-white">
       <CandidateNav />
+      <main className="flex-1 overflow-y-auto">
       <div className="max-w-2xl mx-auto px-4 py-10">
         <Link href="/agent" className="flex items-center gap-1.5 text-xs text-white/30 hover:text-white/60 mb-8 transition-colors">
           <ArrowLeft className="w-3.5 h-3.5" /> Atlas
@@ -106,6 +107,7 @@ export default function BriefsPage() {
           </div>
         )}
       </div>
+      </main>
     </div>
   )
 }
