@@ -14,7 +14,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 import { pollJob } from '@/lib/pollJob'
 
-interface SkillBar { skill: string; minScore: number }
+interface SkillBar { skill: string; minScore: number; specialization?: string; minSpecScore?: number }
 interface SkillMatch { skill: string; required: number; candidateScore: number | null; cleared: boolean }
 interface Verdict {
   mutualFit: boolean; techBarCleared: boolean; compOverlap: boolean
@@ -184,9 +184,16 @@ export default function RoleDetailPage() {
               <div className="text-[10px] text-[#888FC0] uppercase tracking-wider mb-2 font-semibold">Must-have bar</div>
               <div className="flex flex-wrap gap-1.5">
                 {role.mustHave.length ? role.mustHave.map((m) => (
-                  <span key={m.skill} className="text-[10px] px-1.5 py-0.5 rounded-md border border-[#2DE2C5]/25 bg-[#2DE2C5]/5 text-[#2DE2C5] font-medium">
-                    {m.skill} ≥{m.minScore}
-                  </span>
+                  <div key={m.skill} className="flex flex-col gap-0.5">
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-md border border-[#2DE2C5]/25 bg-[#2DE2C5]/5 text-[#2DE2C5] font-medium">
+                      {m.skill} ≥{m.minScore}
+                    </span>
+                    {m.specialization && (
+                      <span className="text-[9px] px-1.5 py-0.5 rounded-md border border-[#8B7CF8]/20 bg-[#8B7CF8]/5 text-[#8B7CF8] font-medium">
+                        {m.specialization} ≥{m.minSpecScore}
+                      </span>
+                    )}
+                  </div>
                 )) : <span className="text-[10px] text-[#888FC0]">none</span>}
               </div>
               {role.niceHave.length > 0 && (

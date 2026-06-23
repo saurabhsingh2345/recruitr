@@ -14,7 +14,7 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 
-interface SkillBar { skill: string; minScore: number }
+interface SkillBar { skill: string; minScore: number; specialization?: string; minSpecScore?: number }
 interface Role {
   _id: string
   title: string
@@ -136,6 +136,9 @@ function RoleCard({ role }: { role: Role }) {
           {role.mustHave.slice(0, 5).map((m) => (
             <span key={m.skill} className="text-[10px] px-1.5 py-0.5 rounded-md border border-[#2DE2C5]/20 bg-[#2DE2C5]/5 text-[#2DE2C5] font-medium">
               {m.skill} ≥{m.minScore}
+              {m.specialization && (
+                <span className="ml-1 text-[#2DE2C5]/60">· {m.specialization} ≥{m.minSpecScore}</span>
+              )}
             </span>
           ))}
           {role.mustHave.length === 0 && (

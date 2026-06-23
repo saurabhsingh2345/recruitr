@@ -28,19 +28,22 @@ export async function POST(
   const application = await Application.findById(id).lean<any>()
   if (!application) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  // Verify recruiter owns the role
+  // Application has no roleId FK — verify recruiter owns it directly, then find the role by jobTitle
+  if (application.recruiterId !== session.user.id) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  // Best-effort: match role by recruiter + jobTitle (most recent if multiple)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const role = await RoleSpec.findOne({
-    _id: application.roleId,
     recruiterId: session.user.id,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  }).lean<any>()
-  if (!role) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    ...(application.jobTitle ? { title: application.jobTitle } : {}),
+  }).sort({ updatedAt: -1 }).lean<any>()
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const profile = await Profile.findOne({ userId: application.candidateId }).lean<any>()
 
-  const mustHave = role.mustHave || []
+  const mustHave = role?.mustHave || []
   const candidateSkills = profile?.parsedSkills || []
 
   // Find gap skills (required but candidate is below bar or missing)
@@ -72,13 +75,13 @@ export async function POST(
       },
       {
         role: 'user',
-        content: `Role: ${role.title} at ${role.company}
+        content: `Role: ${role?.title || application.jobTitle || 'Engineering'} at ${role?.company || application.recruiterInfo?.company || 'the company'}
 
 Gap skills (probe these hard): ${gaps.map((g: { skill: string; minScore: number }) => `${g.skill} (need ≥${g.minScore})`).join(', ') || 'none'}
 
 Strength skills (verify depth): ${strengths.map((s: { skill: string }) => s.skill).join(', ') || 'none'}
 
-Role context: ${role.teamContext || 'Standard engineering role'}
+Role context: ${role?.teamContext || 'Standard engineering role'}
 
 Generate interview questions JSON.`,
       },
@@ -93,5 +96,5 @@ Generate interview questions JSON.`,
     parsed = { gapQuestions: [], verifyQuestions: [], behavioralQuestions: [], raw: text }
   }
 
-  return NextResponse.json({ questions: parsed, gaps: gaps.length, roleTitle: role.title })
+  return NextResponse.json({ questions: parsed, gaps: gaps.length, roleTitle: role?.title || application.jobTitle || '' })
 }

@@ -11,6 +11,12 @@ import { processReferralMilestone } from '@/lib/referrals'
 import { checkAndIssueCertificates } from '@/lib/certificates'
 import { createNotification } from '@/lib/notifications'
 import { extractWeaknessSignals } from '@/lib/memory'
+import {
+  computeProgressionVelocity,
+  suggestNextSession,
+  computeSpecializationImpact,
+  buildGapsWithNextSteps,
+} from '@/lib/interview-insights'
 
 export async function POST(
   _req: NextRequest,
@@ -153,11 +159,25 @@ Return ONLY valid JSON (no markdown, no code fences):
       breakdown: analysis.breakdown,
       delta: { [interviewSession.targetSkill]: analysis.skillDelta || 5 },
     }
+
+    const gaps = analysis.gaps || []
+    const topGap = gaps[0] || null
     interviewSession.insightReport = {
       strengths: analysis.strengths || [],
-      gaps: analysis.gaps || [],
+      gaps,
+      gapsWithNextSteps: buildGapsWithNextSteps(gaps),
       idealAnswers: normalizedIdealAnswers,
       studyRecommendations: analysis.studyRecommendations || [],
+      aiVerdict,
+      weaknessSignals: [],
+      nextSessionRec: suggestNextSession(
+        interviewSession.targetSkill,
+        interviewSession.format,
+        analysis.overallScore,
+        topGap
+      ),
+      progressionSignal: '',
+      specializationImpact: '',
       generatedAt: new Date(),
     }
 
@@ -270,6 +290,25 @@ Return ONLY valid JSON (no markdown, no code fences):
       }
 
       await profile.save()
+    }
+
+    // Enrich insight report with progression signal + specialization impact
+    if (profile) {
+      const skillEntry = profile.parsedSkills.find(
+        (s: { name: string }) => s.name.toLowerCase() === interviewSession.targetSkill.toLowerCase()
+      )
+      const velocity = skillEntry?.scoreHistory
+        ? computeProgressionVelocity(skillEntry.scoreHistory)
+        : null
+      if (velocity) {
+        interviewSession.insightReport.progressionSignal = velocity.label
+      }
+      interviewSession.insightReport.specializationImpact = computeSpecializationImpact(
+        interviewSession.targetSkill,
+        scoreUpdateData.before,
+        scoreUpdateData.after,
+        topGap
+      )
     }
 
     // Store scoreUpdate on the session so the report page can read it

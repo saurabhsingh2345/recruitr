@@ -24,17 +24,17 @@ export async function GET() {
   const roles = await RoleSpec.find({ recruiterId }).select('_id title status mustHave createdAt').lean<any[]>()
   const roleIds = roles.map((r) => r._id)
 
-  // Handshakes over time
+  // Handshakes over time — keyed by roleSpecId (not roleId)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handshakes = await Handshake.find({
-    roleId: { $in: roleIds },
+    roleSpecId: { $in: roleIds.map((id) => id.toString()) },
     createdAt: { $gte: twelveWeeksAgo },
   }).lean<any[]>()
 
-  // Applications
+  // Applications are linked to recruiterId only (no roleId foreign key on Application)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const applications = await Application.find({
-    roleId: { $in: roleIds },
+    recruiterId,
     createdAt: { $gte: twelveWeeksAgo },
   }).lean<any[]>()
 
@@ -44,12 +44,15 @@ export async function GET() {
   // Funnel totals
   const surfaced = handshakes.filter((h) => h.status === 'surfaced_to_candidate').length
   const applied = applications.length
-  const interviewed = applications.filter((a) => a.interview?.scheduledAt).length
-  const offered = applications.filter((a) => a.outcome === 'hired').length
+  // interview.status is 'proposed'|'confirmed'|'declined'|'completed' — confirmed/completed = scheduled
+  const interviewed = applications.filter(
+    (a) => a.interview?.status && a.interview.status !== 'proposed'
+  ).length
+  const offered = applications.filter((a) => a.outcome?.result === 'hired').length
 
   // Avg time to offer (days)
   const offeredApps = applications.filter(
-    (a) => a.outcome === 'hired' && a.createdAt && a.updatedAt
+    (a) => a.outcome?.result === 'hired' && a.createdAt && a.updatedAt
   )
   const avgDaysToOffer =
     offeredApps.length > 0

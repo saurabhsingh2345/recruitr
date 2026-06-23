@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
       .select('name discoverability preferences subscriptionTier subscriptionStatus')
       .lean() as Promise<{ name: string; discoverability: string; preferences?: Record<string, unknown>; subscriptionTier?: string; subscriptionStatus?: string } | null>,
     Profile.findOne({ userId: session.user.id })
-      .select('parsedSkills targetRole cohortPercentile projects experiences educations githubUsername bio yearsOfExperience githubActivitySummary')
+      .select('parsedSkills targetRole cohortPercentile projects experiences educations githubUsername bio yearsOfExperience githubActivitySummary twitterActivitySummary')
       .lean() as Promise<{
         parsedSkills: { name: string; proofScore: number }[]
         targetRole: string
@@ -53,6 +53,7 @@ export async function POST(req: NextRequest) {
         bio: string
         yearsOfExperience: number
         githubActivitySummary?: string
+        twitterActivitySummary?: string
       } | null>,
     Handshake.find({
       candidateId: session.user.id,
@@ -114,6 +115,7 @@ export async function POST(req: NextRequest) {
     pendingOps ? `Pending opportunities (surfaced by Atlas): ${pendingOps}` : 'No pending opportunities right now',
     user?.preferences?.minCompLpa ? `Min comp preference: ₹${user.preferences.minCompLpa}L` : '',
     profile?.githubActivitySummary ? `Recent GitHub activity: ${profile.githubActivitySummary}` : '',
+    profile?.twitterActivitySummary ? `Recent X/Twitter activity: ${profile.twitterActivitySummary}` : '',
   ].filter(Boolean).join('\n')
 
   const systemWithContext = `${ATLAS_SYSTEM}\n\n--- Candidate Context ---\n${candidateContext}`

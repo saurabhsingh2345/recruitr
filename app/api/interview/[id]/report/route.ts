@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { connectDB } from '@/lib/mongodb'
 import { InterviewSession } from '@/lib/models/InterviewSession'
+import { Profile } from '@/lib/models/Profile'
 import { User } from '@/lib/models/User'
 
 export async function GET(
@@ -18,10 +19,11 @@ export async function GET(
   try {
     await connectDB()
 
-    const [interviewSession, userDoc] = await Promise.all([
+    const [interviewSession, userDoc, profile] = await Promise.all([
       InterviewSession.findOne({ _id: id, userId: session.user.id })
         .select('format targetSkill scores insightReport completedAt status messages scoreUpdate companyMode'),
       User.findById(session.user.id).select('username').lean(),
+      Profile.findOne({ userId: session.user.id }).select('cohortPercentile').lean(),
     ])
 
     if (!interviewSession) {
@@ -38,6 +40,7 @@ export async function GET(
       scoreUpdate: interviewSession.scoreUpdate || null,
       companyMode: interviewSession.companyMode || null,
       username: (userDoc as { username?: string } | null)?.username || '',
+      cohortPercentile: (profile as { cohortPercentile?: number } | null)?.cohortPercentile ?? 0,
       messages: (interviewSession.messages || []).map((m: { role: string; content: string }) => ({
         role: m.role,
         content: m.content,

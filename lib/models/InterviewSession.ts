@@ -22,14 +22,32 @@ export interface IWeaknessSignal {
   at: Date
 }
 
+export interface INextSessionRec {
+  format: string
+  skill: string
+  reason: string
+}
+
 export interface IInsightReport {
   strengths: string[]
   gaps: string[]
+  gapsWithNextSteps: Array<{ gap: string; nextStep: string }>
   idealAnswers: Array<{ question: string; answer: string }>
   studyRecommendations: string[]
   aiVerdict: string
   weaknessSignals: IWeaknessSignal[]
+  nextSessionRec: INextSessionRec | null
+  progressionSignal: string
+  specializationImpact: string
   generatedAt: Date
+}
+
+export interface IRigorConditions {
+  faceDetectionActive: boolean
+  fullScreenEnforced: boolean
+  copyPasteBlocked: boolean
+  windowSwitchDetected: boolean
+  capturedAt: Date
 }
 
 export interface IInterviewSession extends Document {
@@ -55,6 +73,7 @@ export interface IInterviewSession extends Document {
   githubContext: string
   memoryContext: string
   companyMode?: { jdSnippet: string; style: string; company: string }
+  rigorConditions?: IRigorConditions
   shareToken?: string
   createdAt: Date
   completedAt: Date
@@ -97,6 +116,10 @@ const InterviewSessionSchema = new Schema<IInterviewSession>({
   insightReport: {
     strengths: [String],
     gaps: [String],
+    gapsWithNextSteps: {
+      type: [{ gap: String, nextStep: String }],
+      default: [],
+    },
     idealAnswers: { type: [{ question: String, answer: String }], default: [] },
     studyRecommendations: [String],
     aiVerdict: { type: String, default: '' },
@@ -110,6 +133,12 @@ const InterviewSessionSchema = new Schema<IInterviewSession>({
       }],
       default: [],
     },
+    nextSessionRec: {
+      type: { format: String, skill: String, reason: String },
+      default: null,
+    },
+    progressionSignal: { type: String, default: '' },
+    specializationImpact: { type: String, default: '' },
     generatedAt: Date,
   },
   scoreUpdate: {
@@ -125,6 +154,16 @@ const InterviewSessionSchema = new Schema<IInterviewSession>({
     jdSnippet: { type: String, default: '' },
     style: { type: String, default: '' },
     company: { type: String, default: '' },
+  },
+  rigorConditions: {
+    type: {
+      faceDetectionActive: { type: Boolean, default: false },
+      fullScreenEnforced: { type: Boolean, default: false },
+      copyPasteBlocked: { type: Boolean, default: false },
+      windowSwitchDetected: { type: Boolean, default: false },
+      capturedAt: { type: Date, default: Date.now },
+    },
+    default: null,
   },
   shareToken: { type: String, sparse: true, index: true },
   createdAt: { type: Date, default: Date.now },

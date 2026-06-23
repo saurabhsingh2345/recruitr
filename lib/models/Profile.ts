@@ -14,6 +14,25 @@ export interface ISkill {
   scoreHistory: ISkillHistoryEntry[]
 }
 
+export interface ISpecializationScoreEntry {
+  score: number
+  at: Date
+  sessionId?: string
+}
+
+export interface ISpecialization {
+  name: string           // e.g. "Concurrent Systems"
+  skill: string          // parent skill e.g. "Go"
+  score: number
+  scoreHistory: ISpecializationScoreEntry[]
+  inferredAt: Date
+  confirmedByUser: boolean
+  evidence: {
+    repoLinks: string[]
+    sessionIds: string[]
+  }
+}
+
 export interface IPortfolioProject {
   title: string
   description: string
@@ -64,6 +83,7 @@ export interface IProfile extends Document {
   githubUsername: string
   rawResumeText: string
   parsedSkills: ISkill[]
+  specializations: ISpecialization[]
   projects: IProject[]
   experiences: IExperience[]
   educations: IEducation[]
@@ -81,7 +101,8 @@ export interface IProfile extends Document {
   portfolioCustomization: IPortfolioCustomization
   onboardingComplete: boolean
   onboardingStep: number   // 0=not started, 1=github, 2=session_started, 3=done
-  githubActivitySummary: string  // 1-2 sentence AI summary of recent GitHub activity; feeds Atlas context
+  githubActivitySummary: string   // 1-2 sentence AI summary of recent GitHub activity; feeds Atlas context
+  twitterActivitySummary: string  // 1-2 sentence AI summary from X/Twitter bio+tweets; feeds Atlas context
   updatedAt: Date
 }
 
@@ -163,9 +184,30 @@ const ProfileSchema = new Schema<IProfile>({
     showProjects: { type: Boolean, default: true },
     showEducation: { type: Boolean, default: true },
   },
+  specializations: {
+    type: [
+      {
+        name: { type: String, required: true },
+        skill: { type: String, required: true },
+        score: { type: Number, default: 0 },
+        scoreHistory: {
+          type: [{ score: Number, at: { type: Date, default: Date.now }, sessionId: String }],
+          default: [],
+        },
+        inferredAt: { type: Date, default: Date.now },
+        confirmedByUser: { type: Boolean, default: false },
+        evidence: {
+          repoLinks: { type: [String], default: [] },
+          sessionIds: { type: [String], default: [] },
+        },
+      },
+    ],
+    default: [],
+  },
   onboardingComplete: { type: Boolean, default: false },
   onboardingStep: { type: Number, default: 0 },
   githubActivitySummary: { type: String, default: '' },
+  twitterActivitySummary: { type: String, default: '' },
   updatedAt: { type: Date, default: Date.now },
 })
 

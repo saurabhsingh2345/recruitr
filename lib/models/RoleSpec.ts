@@ -3,6 +3,8 @@ import mongoose, { Schema, Document, Types } from 'mongoose'
 export interface ISkillBar {
   skill: string
   minScore: number
+  specialization?: string
+  minSpecScore?: number
 }
 
 export interface IRoleSpec extends Document {
@@ -33,6 +35,8 @@ export interface IRoleSpec extends Document {
 const SkillBarSchema = new Schema<ISkillBar>({
   skill: { type: String, required: true },
   minScore: { type: Number, default: 60 },
+  specialization: { type: String, default: '' },
+  minSpecScore: { type: Number, default: 0 },
 }, { _id: false })
 
 const RoleSpecSchema = new Schema<IRoleSpec>({

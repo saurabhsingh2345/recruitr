@@ -8,6 +8,7 @@ import {
   CheckCircle2, AlertCircle, BookOpen, TrendingUp, ArrowRight,
   Code2, ChevronLeft, Loader2, MessageSquare, BarChart2, Bot, User,
   Copy, Check, ExternalLink, Sparkles, ChevronDown, Share2,
+  Target, Zap, BarChart, ChevronRight,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -28,6 +29,17 @@ interface ScoreUpdate {
   isFirstScore: boolean
 }
 
+interface GapWithStep {
+  gap: string
+  nextStep: string
+}
+
+interface NextSessionRec {
+  format: string
+  skill: string
+  reason: string
+}
+
 interface Report {
   format: string
   targetSkill: string
@@ -40,18 +52,29 @@ interface Report {
   insightReport: {
     strengths: string[]
     gaps: string[]
+    gapsWithNextSteps?: GapWithStep[]
     studyRecommendations: string[]
     idealAnswers: Array<{ question: string; answer: string }>
     aiVerdict?: string
+    nextSessionRec?: NextSessionRec | null
+    progressionSignal?: string
+    specializationImpact?: string
     generatedAt: string
   }
   completedAt: string
   scoreUpdate: ScoreUpdate | null
   companyMode?: { company: string; jdSnippet: string; style: string } | null
   messages?: Message[]
+  cohortPercentile?: number
 }
 
-/* ── Score ring ───────────────────────────────────────────── */
+const FORMAT_LABELS: Record<string, string> = {
+  coding: 'Coding',
+  system_design: 'System Design',
+  project_deepdive: 'Project Deep-dive',
+  behavioural: 'Behavioural',
+  gap: 'Gap Analysis',
+}
 
 function ScoreRing({ score, size = 96 }: { score: number; size?: number }) {
   const r = size * 0.4
@@ -72,8 +95,6 @@ function ScoreRing({ score, size = 96 }: { score: number; size?: number }) {
   )
 }
 
-/* ── Copy button ──────────────────────────────────────────── */
-
 function CopyButton({ text, label = 'Copy' }: { text: string; label?: string }) {
   const [copied, setCopied] = useState(false)
   function copy() {
@@ -91,8 +112,6 @@ function CopyButton({ text, label = 'Copy' }: { text: string; label?: string }) 
   )
 }
 
-/* ── First-score activation screen ───────────────────────── */
-
 function FirstScoreScreen({
   skill, score, username, onDismiss,
 }: {
@@ -103,10 +122,7 @@ function FirstScoreScreen({
   const origin = typeof window !== 'undefined' ? window.location.origin : ''
   const badgeUrl = `${origin}/api/badge/${username}/${encodeURIComponent(skill)}`
   const proofUrl = `${origin}/proof/${username}/${encodeURIComponent(skill)}`
-  // Linked image — clicking the badge in a README goes to the proof page
   const markdown = `[![${skill} ${score}](${badgeUrl})](${proofUrl})`
-
-  // Floating particle refs for ambient animation
   const particles = Array.from({ length: 12 }, (_, i) => i)
 
   return (
@@ -116,7 +132,6 @@ function FirstScoreScreen({
       exit={{ opacity: 0 }}
       className="fixed inset-0 z-50 flex items-center justify-center bg-background/95 backdrop-blur-sm overflow-hidden"
     >
-      {/* Ambient particles */}
       {particles.map((i) => (
         <motion.div key={i}
           className="absolute w-1.5 h-1.5 rounded-full"
@@ -125,22 +140,15 @@ function FirstScoreScreen({
           transition={{ duration: 3 + (i % 3), repeat: Infinity, delay: i * 0.4, ease: 'easeOut' }}
         />
       ))}
-
-      {/* Glow */}
       <div className="absolute inset-0 pointer-events-none"
         style={{ background: `radial-gradient(ellipse 60% 50% at 50% 50%, ${color}10, transparent 70%)` }} />
-
       <div className="relative z-10 flex flex-col items-center text-center max-w-md px-6">
-
-        {/* Label */}
         <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
           className="flex items-center gap-2 px-3 py-1 rounded-full border mb-8"
           style={{ borderColor: color + '40', backgroundColor: color + '10' }}>
           <Sparkles className="w-3.5 h-3.5" style={{ color }} />
           <span className="text-xs font-semibold" style={{ color }}>First score unlocked</span>
         </motion.div>
-
-        {/* Score ring */}
         <motion.div initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
           transition={{ type: 'spring', stiffness: 200, damping: 18, delay: 0.2 }}
           className="relative mb-6">
@@ -150,8 +158,6 @@ function FirstScoreScreen({
             <span className="text-sm text-foreground/40 font-medium">/100</span>
           </div>
         </motion.div>
-
-        {/* Title */}
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
           <h1 className="text-2xl font-bold mb-1">{skill}</h1>
           <p className="text-foreground/50 text-sm mb-1">
@@ -159,26 +165,19 @@ function FirstScoreScreen({
             {' '}· Proof-of-skill verified by Intervue
           </p>
         </motion.div>
-
-        {/* Badge preview + copy */}
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.55 }}
           className="w-full mt-8 rounded-xl border border-foreground/[0.08] bg-foreground/[0.03] p-4">
           <div className="text-xs text-foreground/35 font-semibold uppercase tracking-wider mb-3 text-left">
             Your badge — paste it anywhere
           </div>
-
-          {/* Live badge image */}
           <div className="flex items-center justify-center mb-4">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={badgeUrl} alt={`${skill} ${score}`} className="h-8" />
           </div>
-
-          {/* Markdown snippet */}
           <div className="flex items-center gap-2 p-2.5 rounded-lg bg-foreground/[0.05] font-mono text-xs text-foreground/50 mb-3">
             <span className="flex-1 truncate">{markdown}</span>
             <CopyButton text={markdown} label="Copy markdown" />
           </div>
-
           <div className="flex gap-2">
             <a href={proofUrl} target="_blank" rel="noopener noreferrer"
               className="flex-1 flex items-center justify-center gap-1.5 text-xs text-foreground/40 hover:text-foreground/70 transition-colors py-1.5">
@@ -190,8 +189,6 @@ function FirstScoreScreen({
             </a>
           </div>
         </motion.div>
-
-        {/* Dismiss */}
         <motion.button initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.8 }}
           onClick={onDismiss}
           className="mt-6 flex items-center gap-1.5 text-sm text-foreground/35 hover:text-foreground/60 transition-colors">
@@ -201,8 +198,6 @@ function FirstScoreScreen({
     </motion.div>
   )
 }
-
-/* ── "Almost there" nudge (score < 60, first session) ────── */
 
 function NearlyThereCard({ score, skill }: { score: number; skill: string }) {
   const needed = 60 - score
@@ -229,8 +224,6 @@ function NearlyThereCard({ score, skill }: { score: number; skill: string }) {
   )
 }
 
-/* ── Score update banner ─────────────────────────────────── */
-
 function ScoreUpdateBanner({ update }: { update: ScoreUpdate }) {
   const color = getScoreColor(update.after)
   if (update.delta <= 0) return null
@@ -250,8 +243,6 @@ function ScoreUpdateBanner({ update }: { update: ScoreUpdate }) {
     </motion.div>
   )
 }
-
-/* ── Main page ───────────────────────────────────────────── */
 
 export default function InterviewReportPage() {
   const params = useParams()
@@ -298,35 +289,58 @@ export default function InterviewReportPage() {
         if (res.ok) {
           const data = await res.json()
           setReport(data)
-          // Show the celebration if first score ≥ 60
           if (data.scoreUpdate?.isFirstScore && data.scoreUpdate?.after >= 60) {
             setShowFirstScore(true)
           }
         }
       } catch {
-        // fallback for dev
         setReport({
-          format: 'coding', targetSkill: 'React', username: 'dev',
+          format: 'system_design', targetSkill: 'Go', username: 'dev',
           scores: {
-            overall: 74,
-            breakdown: { technical_depth: 78, problem_solving: 72, communication: 76, code_quality: 70 },
-            delta: { React: 9 },
+            overall: 88,
+            breakdown: { technical_depth: 92, problem_solving: 85, communication: 88, code_quality: 87 },
+            delta: { Go: 4 },
           },
           insightReport: {
-            strengths: ['Strong understanding of React reconciliation', 'Clear communication of trade-offs', 'Good instinct for edge cases'],
-            gaps: ['Could deepen knowledge of React memory model', 'Missed opportunity to discuss context propagation'],
-            studyRecommendations: ['Study the React reconciler deep-dive', 'Practice context.useMemo patterns', 'Read the concurrent rendering RFC'],
-            idealAnswers: [
-              { question: 'What is the React reconciliation algorithm?', answer: 'React uses a fiber architecture to perform diffing in O(n) time by making three heuristic assumptions: elements of different types produce different trees; the developer can hint at stability with keys; and children diffed by key are stable. The fiber represents a unit of work that can be paused and resumed.' },
+            strengths: [
+              'Strong distributed system thinking — decomposed the problem clearly',
+              'Handled back-pressure and queue overflow well',
+              'Good instinct for trade-offs under constraints',
             ],
+            gaps: ['Cost optimization & trade-off communication', 'Database scaling patterns'],
+            gapsWithNextSteps: [
+              {
+                gap: 'Cost optimization & trade-off communication',
+                nextStep: 'Practice a System Design session focused on cost trade-offs and capacity planning.',
+              },
+              {
+                gap: 'Database scaling patterns',
+                nextStep: 'Take a Project Deep-dive session centred on database design.',
+              },
+            ],
+            studyRecommendations: ['Study cost-aware system design', 'Practice horizontal vs vertical scaling trade-offs'],
+            idealAnswers: [
+              {
+                question: 'How would you handle 10× traffic spike?',
+                answer: 'Horizontal scaling with load balancing, auto-scaling groups, and queue-based decoupling. Key: identify the bottleneck first — usually the database. Read replicas + connection pooling + Redis cache buys you the most headroom fastest.',
+              },
+            ],
+            aiVerdict: 'Strong distributed systems thinking with clear decomposition ability.',
+            nextSessionRec: {
+              format: 'project_deepdive',
+              skill: 'Go',
+              reason: 'Strong performance. Project Deep-dive pairs with System Design to demonstrate full-stack depth for Go roles.',
+            },
+            progressionSignal: 'Improving 6 pts/session — faster than 85%+ of users',
+            specializationImpact: 'This session raised your Go proof score by +4 points (84 → 88). Next gap to close: Cost optimization & trade-off communication.',
             generatedAt: new Date().toISOString(),
           },
           completedAt: new Date().toISOString(),
-          scoreUpdate: { skill: 'React', before: 0, after: 74, delta: 74, isFirstScore: true },
+          scoreUpdate: { skill: 'Go', before: 84, after: 88, delta: 4, isFirstScore: false },
+          cohortPercentile: 82,
           messages: [],
         })
-        // Show for dev testing
-        setShowFirstScore(true)
+        setShowFirstScore(false)
       } finally {
         setLoading(false)
       }
@@ -358,10 +372,13 @@ export default function InterviewReportPage() {
   const messages = report.messages || []
   const idealAnswers = report.insightReport?.idealAnswers || []
   const isFirstSessionBelow60 = report.scoreUpdate?.isFirstScore && report.scoreUpdate?.after < 60
+  const gapsWithSteps = report.insightReport?.gapsWithNextSteps || []
+  const nextRec = report.insightReport?.nextSessionRec
+  const progressionSignal = report.insightReport?.progressionSignal
+  const specializationImpact = report.insightReport?.specializationImpact
 
   return (
     <>
-      {/* First-score celebration overlay */}
       <AnimatePresence>
         {showFirstScore && report.scoreUpdate && report.username && (
           <FirstScoreScreen
@@ -408,7 +425,7 @@ export default function InterviewReportPage() {
           </div>
         </nav>
 
-        <div className="max-w-3xl mx-auto px-6 py-12 space-y-8">
+        <div className="max-w-3xl mx-auto px-6 py-12 space-y-6">
           {/* Header */}
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="text-center">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-foreground/[0.08] bg-foreground/[0.03] text-xs text-foreground/40 mb-4">
@@ -416,7 +433,7 @@ export default function InterviewReportPage() {
             </div>
             <h1 className="text-3xl font-bold mb-2">Interview Report</h1>
             <p className="text-foreground/40 text-sm">
-              {report.format?.replace('_', ' ')} · {report.targetSkill} ·{' '}
+              {FORMAT_LABELS[report.format] || report.format} · {report.targetSkill} ·{' '}
               {new Date(report.completedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
             </p>
             {report.companyMode?.company && (
@@ -446,18 +463,16 @@ export default function InterviewReportPage() {
           </div>
 
           {activeTab === 'report' ? (
-            <div className="space-y-6">
+            <div className="space-y-5">
               {/* Score update banner */}
               {report.scoreUpdate && !report.scoreUpdate.isFirstScore && (
                 <ScoreUpdateBanner update={report.scoreUpdate} />
               )}
-
-              {/* "Almost there" nudge for first session below 60 */}
               {isFirstSessionBelow60 && (
                 <NearlyThereCard score={report.scoreUpdate!.after} skill={report.targetSkill} />
               )}
 
-              {/* Overall score */}
+              {/* 1. Session Overview */}
               <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
                 className="node-panel p-6 flex items-center gap-8">
                 <div className="relative w-24 h-24 shrink-0">
@@ -467,9 +482,16 @@ export default function InterviewReportPage() {
                     <span className="text-[10px] text-foreground/40">/100</span>
                   </div>
                 </div>
-                <div>
+                <div className="flex-1">
                   <div className="text-2xl font-bold mb-1">{getScoreLabel(overall)}</div>
-                  <p className="text-sm text-foreground/40 mb-3">Overall score · {report.format?.replace('_', ' ')}</p>
+                  <p className="text-sm text-foreground/40 mb-3">
+                    {FORMAT_LABELS[report.format] || report.format} · {report.targetSkill}
+                  </p>
+                  {report.insightReport?.aiVerdict && (
+                    <p className="text-sm text-foreground/60 italic leading-relaxed mb-3">
+                      &ldquo;{report.insightReport.aiVerdict}&rdquo;
+                    </p>
+                  )}
                   {Object.entries(report.scores?.delta || {}).map(([skill, delta]) => (
                     <div key={skill} className="flex items-center gap-2">
                       <TrendingUp className="w-3.5 h-3.5 text-[#2DE2C5]" />
@@ -482,9 +504,37 @@ export default function InterviewReportPage() {
                 </div>
               </motion.div>
 
-              {/* Breakdown */}
-              {breakdown.length > 0 && (
+              {/* 2. Specialization Impact */}
+              {specializationImpact && (
+                <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.13 }}
+                  className="node-panel p-5 flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-[#2DE2C5]/10 flex items-center justify-center shrink-0">
+                    <Zap className="w-4 h-4 text-[#2DE2C5]" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-semibold mb-1">Specialization Impact</div>
+                    <p className="text-sm text-foreground/55 leading-relaxed">{specializationImpact}</p>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* 3. Progression Signal */}
+              {progressionSignal && (
                 <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
+                  className="node-panel p-5 flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-[#8B7CF8]/10 flex items-center justify-center shrink-0">
+                    <BarChart className="w-4 h-4 text-[#8B7CF8]" />
+                  </div>
+                  <div>
+                    <div className="text-xs text-[#888FC0] uppercase tracking-wider mb-0.5">Your pace</div>
+                    <div className="text-sm font-medium">{progressionSignal}</div>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* 4. Score Breakdown */}
+              {breakdown.length > 0 && (
+                <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.17 }}
                   className="node-panel p-6">
                   <h2 className="font-semibold mb-4">Score Breakdown</h2>
                   <div className="space-y-3">
@@ -505,13 +555,13 @@ export default function InterviewReportPage() {
                 </motion.div>
               )}
 
-              {/* Strengths */}
+              {/* 5. Strengths */}
               {report.insightReport?.strengths?.length > 0 && (
                 <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
                   className="node-panel p-6">
                   <div className="flex items-center gap-2 mb-4">
                     <CheckCircle2 className="w-4 h-4 text-[#2DE2C5]" />
-                    <h2 className="font-semibold">What you did well</h2>
+                    <h2 className="font-semibold">Your Strengths</h2>
                   </div>
                   <ul className="space-y-2.5">
                     {report.insightReport.strengths.map((s, i) => (
@@ -523,25 +573,39 @@ export default function InterviewReportPage() {
                 </motion.div>
               )}
 
-              {/* Gaps */}
-              {report.insightReport?.gaps?.length > 0 && (
+              {/* 6. Gaps with Next Steps */}
+              {(gapsWithSteps.length > 0 || report.insightReport?.gaps?.length > 0) && (
                 <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}
                   className="node-panel p-6">
                   <div className="flex items-center gap-2 mb-4">
                     <AlertCircle className="w-4 h-4 text-[#f59e0b]" />
-                    <h2 className="font-semibold">Areas to improve</h2>
+                    <h2 className="font-semibold">Gaps & Next Steps</h2>
                   </div>
-                  <ul className="space-y-2.5">
-                    {report.insightReport.gaps.map((g, i) => (
-                      <li key={i} className="flex items-start gap-2.5 text-sm text-foreground/55">
-                        <span className="text-[#f59e0b] mt-0.5 shrink-0">·</span>{g}
-                      </li>
-                    ))}
-                  </ul>
+                  <div className="space-y-4">
+                    {gapsWithSteps.length > 0
+                      ? gapsWithSteps.map(({ gap, nextStep }, i) => (
+                        <div key={i} className="space-y-1.5">
+                          <div className="flex items-start gap-2">
+                            <span className="text-[#f59e0b] mt-0.5 shrink-0 text-sm">·</span>
+                            <span className="text-sm text-foreground/70 font-medium">{gap}</span>
+                          </div>
+                          <div className="ml-4 flex items-start gap-2 text-xs text-foreground/45 leading-relaxed">
+                            <ChevronRight className="w-3.5 h-3.5 mt-0.5 shrink-0 text-[#2DE2C5]" />
+                            <span>{nextStep}</span>
+                          </div>
+                        </div>
+                      ))
+                      : report.insightReport.gaps.map((g, i) => (
+                        <div key={i} className="flex items-start gap-2.5 text-sm text-foreground/55">
+                          <span className="text-[#f59e0b] mt-0.5 shrink-0">·</span>{g}
+                        </div>
+                      ))
+                    }
+                  </div>
                 </motion.div>
               )}
 
-              {/* Ideal answers — the most instructive part */}
+              {/* 7. What an expert would say */}
               {idealAnswers.length > 0 && (
                 <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
                   className="node-panel p-6">
@@ -555,7 +619,7 @@ export default function InterviewReportPage() {
                       <div key={i} className="space-y-2">
                         <div className="flex items-start gap-2">
                           <Badge className="bg-[#8B7CF8]/10 text-[#8B7CF8] border-[#8B7CF8]/20 text-[10px] shrink-0 mt-0.5">Q{i + 1}</Badge>
-                          <p className="text-sm text-foreground/55 italic leading-relaxed">"{question}"</p>
+                          <p className="text-sm text-foreground/55 italic leading-relaxed">&ldquo;{question}&rdquo;</p>
                         </div>
                         <div className="ml-9 p-3 rounded-lg bg-[#8B7CF8]/[0.04] border border-[#8B7CF8]/10">
                           <p className="text-sm text-foreground/70 leading-relaxed">{answer}</p>
@@ -566,7 +630,7 @@ export default function InterviewReportPage() {
                 </motion.div>
               )}
 
-              {/* Study recommendations */}
+              {/* 8. Study Recommendations */}
               {report.insightReport?.studyRecommendations?.length > 0 && (
                 <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}
                   className="node-panel p-6">
@@ -587,9 +651,62 @@ export default function InterviewReportPage() {
                 </motion.div>
               )}
 
-              {/* Badge CTA at bottom (for scores ≥ 60, non-first sessions or dismissed overlay) */}
-              {!showFirstScore && report.username && overall >= 60 && (
+              {/* 9. Next Session Recommendation */}
+              {nextRec && (
+                <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.38 }}
+                  className="node-panel p-5">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Target className="w-4 h-4 text-[#2DE2C5]" />
+                    <h2 className="font-semibold">Next Session Recommendation</h2>
+                  </div>
+                  <div className="flex items-start gap-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <span className="text-sm font-semibold text-[#2DE2C5]">
+                          {FORMAT_LABELS[nextRec.format] || nextRec.format}
+                        </span>
+                        <span className="text-xs text-[#888FC0]">· {nextRec.skill}</span>
+                      </div>
+                      <p className="text-sm text-foreground/55 leading-relaxed">{nextRec.reason}</p>
+                    </div>
+                    <Link
+                      href={`/interview/new?skill=${encodeURIComponent(nextRec.skill)}&format=${nextRec.format}`}
+                      className="shrink-0"
+                    >
+                      <Button size="sm" className="btn-supernova font-semibold text-xs h-8 px-4">
+                        Start <ArrowRight className="w-3 h-3 ml-1" />
+                      </Button>
+                    </Link>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* 10. How You Compare */}
+              {report.cohortPercentile !== undefined && report.cohortPercentile > 0 && (
                 <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}
+                  className="node-panel p-5">
+                  <div className="flex items-center gap-2 mb-3">
+                    <BarChart className="w-4 h-4 text-[#8B7CF8]" />
+                    <h2 className="font-semibold">How You Compare</h2>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-foreground/55">Your score this session</span>
+                      <span className="font-mono font-bold" style={{ color: scoreColor }}>{overall}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-foreground/55">Your {report.targetSkill} profile rank</span>
+                      <span className="font-mono font-medium text-[#2DE2C5]">
+                        Top {100 - report.cohortPercentile}%
+                      </span>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* Badge CTA */}
+              {!showFirstScore && report.username && overall >= 60 && (
+                <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.42 }}
                   className="node-panel p-5 flex items-center gap-4">
                   <div className="w-9 h-9 rounded-xl bg-[#2DE2C5]/10 flex items-center justify-center shrink-0">
                     <TrendingUp className="w-4 h-4 text-[#2DE2C5]" />
@@ -597,9 +714,7 @@ export default function InterviewReportPage() {
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-semibold mb-0.5">Share your {report.targetSkill} score</div>
                     <div className="font-mono text-[11px] text-foreground/35 truncate">
-                      {typeof window !== 'undefined'
-                        ? `[![${report.targetSkill} ${overall}](…/badge/…)](…/proof/…)`
-                        : ''}
+                      Add your badge to GitHub README or LinkedIn
                     </div>
                   </div>
                   <CopyButton
@@ -654,12 +769,21 @@ export default function InterviewReportPage() {
                 Back to dashboard
               </Button>
             </Link>
-            <Link href={`/interview/new${report.targetSkill ? `?skill=${encodeURIComponent(report.targetSkill)}` : ''}`}
-              className="flex-1">
-              <Button className="w-full btn-supernova font-semibold">
-                Practice again <ArrowRight className="w-4 h-4 ml-1.5" />
-              </Button>
-            </Link>
+            {nextRec ? (
+              <Link href={`/interview/new?skill=${encodeURIComponent(nextRec.skill)}&format=${nextRec.format}`}
+                className="flex-1">
+                <Button className="w-full btn-supernova font-semibold">
+                  {FORMAT_LABELS[nextRec.format] || 'Next session'} <ArrowRight className="w-4 h-4 ml-1.5" />
+                </Button>
+              </Link>
+            ) : (
+              <Link href={`/interview/new${report.targetSkill ? `?skill=${encodeURIComponent(report.targetSkill)}` : ''}`}
+                className="flex-1">
+                <Button className="w-full btn-supernova font-semibold">
+                  Practice again <ArrowRight className="w-4 h-4 ml-1.5" />
+                </Button>
+              </Link>
+            )}
           </motion.div>
         </div>
       </div>

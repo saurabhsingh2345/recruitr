@@ -128,6 +128,7 @@ export async function POST(req: NextRequest) {
       scoreHistory: [{ score: Math.round(s.confidence * 0.5), source: 'twitter', at: now }],
     }))
     profile.parsedSkills = [...preserved, ...merged]
+    profile.twitterActivitySummary = analysis.summary || ''
     await profile.save()
 
     const summary = analysis.summary || `${merged.length} skills extracted from X/Twitter`

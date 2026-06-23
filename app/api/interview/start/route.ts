@@ -28,18 +28,29 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { format, targetSkill, companyJD } = await req.json()
+    const { format, targetSkill, companyJD, rigorConditions } = await req.json()
     await connectDB()
 
     const user = await User.findById(session.user.id)
     const profile = await Profile.findOne({ userId: user?._id })
 
-    // Get fresh GitHub repos for personalization + candidate memory
+    // Get project context + candidate memory
+    // GitHub-auth users: fetch live repos. Twitter-auth users: use stored activity summary.
+    const isGithubUser = user?.authProvider === 'github' || !!user?.githubId
     const [repos, memoryContext] = await Promise.all([
-      user?.username ? fetchGitHubRepos(user.username) : Promise.resolve([]),
+      isGithubUser && user?.username ? fetchGitHubRepos(user.username) : Promise.resolve([]),
       getCandidateMemory(session.user.id),
     ])
-    const repoSummary = repos.length > 0 ? reposToSummary(repos) : 'No GitHub data available.'
+
+    const twitterSummary = (profile as unknown as { twitterActivitySummary?: string })?.twitterActivitySummary
+    let repoSummary: string
+    if (repos.length > 0) {
+      repoSummary = reposToSummary(repos)
+    } else if (twitterSummary) {
+      repoSummary = `X/Twitter activity: ${twitterSummary}`
+    } else {
+      repoSummary = 'No external project data available yet.'
+    }
 
     // Skill scores from profile
     const skillContext =
@@ -98,6 +109,7 @@ Start the interview now with your opening question. Be specific to their actual 
       githubContext: repoSummary.slice(0, 2000),
       memoryContext,
       ...(companyModeData ? { companyMode: companyModeData } : {}),
+      ...(rigorConditions ? { rigorConditions: { ...rigorConditions, capturedAt: new Date() } } : {}),
     })
 
     return NextResponse.json({

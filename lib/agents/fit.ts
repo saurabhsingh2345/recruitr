@@ -11,6 +11,7 @@ import type { ISkillBar } from '@/lib/models/RoleSpec'
 
 export interface CandidateSnapshot {
   skills: { name: string; proofScore: number; evidence: string[] }[]
+  specializations?: { name: string; skill: string; score: number }[]
   location: string
   preferences: {
     minCompLpa: number
@@ -90,8 +91,21 @@ export function computeFit(candidate: CandidateSnapshot, role: RoleSnapshot): Fi
   // ── Tech bar (hard gate) ──
   const skillMatches = evaluateBar(candidate.skills, role.mustHave)
   const niceHaveMatches = evaluateBar(candidate.skills, role.niceHave)
+
+  // Check specialization gates (optional per skill bar)
+  const specGatesCleared = role.mustHave.every(bar => {
+    if (!bar.specialization || !bar.minSpecScore) return true
+    const specs = candidate.specializations || []
+    const match = specs.find(
+      sp =>
+        sp.skill.toLowerCase() === bar.skill.toLowerCase() &&
+        sp.name.toLowerCase().includes(bar.specialization!.toLowerCase())
+    )
+    return !!match && match.score >= bar.minSpecScore!
+  })
+
   const techBarCleared =
-    role.mustHave.length === 0 || skillMatches.every((m) => m.cleared)
+    (role.mustHave.length === 0 || skillMatches.every((m) => m.cleared)) && specGatesCleared
 
   // ── Comp overlap (hard gate) ──
   // The role must be able to pay at least the candidate's floor.

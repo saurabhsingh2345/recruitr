@@ -47,13 +47,13 @@ export async function runAutonomousSourcing(
   // Exclude roles already handshaked with this candidate
   const existingHandshakes = await Handshake.find({
     candidateId: userId,
-    roleId: { $in: roles.map((r) => r._id) },
+    roleSpecId: { $in: roles.map((r) => r._id.toString()) },
   })
-    .select('roleId')
+    .select('roleSpecId')
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .lean<any[]>()
 
-  const handshakeRoleIds = new Set(existingHandshakes.map((h) => h.roleId.toString()))
+  const handshakeRoleIds = new Set(existingHandshakes.map((h) => h.roleSpecId.toString()))
   const newRoles = roles.filter((r) => !handshakeRoleIds.has(r._id.toString()))
 
   let matched = 0

@@ -37,7 +37,11 @@ function maskCandidate(candidate: Record<string, unknown>): Record<string, unkno
 
 export async function POST(req: NextRequest) {
   try {
-    const { query, skills = [], minScore = 0, targetRole = '', page = 1, blind = false, vouchedOnly = false } = await req.json()
+    const {
+      query, skills = [], minScore = 0, targetRole = '',
+      page = 1, blind = false, vouchedOnly = false,
+      specialization = '', specSkill = '', minSpecScore = 0,
+    } = await req.json()
     const session = await auth()
 
     // Try Typesense first for full-text search; fall back to MongoDB on miss/error
@@ -75,11 +79,26 @@ export async function POST(req: NextRequest) {
       filter['targetRole'] = { $regex: targetRole, $options: 'i' }
     }
 
+    // Specialization filter — narrow to candidates with proven sub-domain depth
+    if (specialization && specSkill) {
+      const andClauses = (filter['$and'] as unknown[]) || []
+      andClauses.push({
+        specializations: {
+          $elemMatch: {
+            skill: { $regex: specSkill, $options: 'i' },
+            name: { $regex: specialization, $options: 'i' },
+            ...(minSpecScore > 0 ? { score: { $gte: minSpecScore } } : {}),
+          },
+        },
+      })
+      filter['$and'] = andClauses
+    }
+
     const limit = 12
     const skip = (page - 1) * limit
 
     const profiles = await Profile.find(filter)
-      .select('userId githubUsername parsedSkills projects cohortPercentile targetRole yearsOfExperience bio location')
+      .select('userId githubUsername parsedSkills specializations projects cohortPercentile targetRole yearsOfExperience bio location')
       .skip(skip)
       .limit(limit)
       .lean()

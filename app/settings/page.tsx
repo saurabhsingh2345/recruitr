@@ -41,12 +41,13 @@ interface PortfolioCustomization {
 type PortfolioTheme = 'minimal' | 'terminal' | 'magazine' | 'bento'
 
 const TABS = [
-  { id: 'profile',       label: 'Profile',       icon: User },
-  { id: 'portfolio',     label: 'Portfolio',     icon: Layout },
-  { id: 'connections',   label: 'Connections',   icon: LinkIcon },
-  { id: 'privacy',       label: 'Privacy',       icon: Shield },
-  { id: 'notifications', label: 'Notifications', icon: Bell },
-  { id: 'billing',       label: 'Billing',       icon: CreditCard },
+  { id: 'profile',         label: 'Profile',         icon: User },
+  { id: 'portfolio',       label: 'Portfolio',       icon: Layout },
+  { id: 'specializations', label: 'Specializations', icon: Zap },
+  { id: 'connections',     label: 'Connections',     icon: LinkIcon },
+  { id: 'privacy',         label: 'Privacy',         icon: Shield },
+  { id: 'notifications',   label: 'Notifications',   icon: Bell },
+  { id: 'billing',         label: 'Billing',         icon: CreditCard },
 ]
 
 const THEMES: { id: PortfolioTheme; label: string; desc: string; bg: string }[] = [
@@ -436,7 +437,11 @@ export default function SettingsPage() {
   const [pwNew, setPwNew] = useState('')
   const [pwConfirm, setPwConfirm] = useState('')
   const [pwChanging, setPwChanging] = useState(false)
-  const [authProvider, setAuthProvider] = useState<'github' | 'credentials'>('github')
+  const [authProvider, setAuthProvider] = useState<'github' | 'credentials' | 'twitter'>('github')
+  const [specializations, setSpecializations] = useState<Array<{
+    name: string; skill: string; score: number; confirmedByUser: boolean
+  }>>([])
+  const [specLoading, setSpecLoading] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -486,6 +491,12 @@ export default function SettingsPage() {
             window.history.replaceState({}, '', '/settings?tab=billing')
           }
         }
+        // Load specializations
+        const specRes = await fetch('/api/profile/specializations')
+        if (specRes.ok) {
+          const { specializations: specs } = await specRes.json()
+          setSpecializations(specs || [])
+        }
       } catch { toast.error('Failed to load settings') }
       finally { setLoading(false) }
     }
@@ -508,6 +519,23 @@ export default function SettingsPage() {
       else toast.error('Save failed')
     } catch { toast.error('Save failed') }
     finally { setSaving(false) }
+  }
+
+  async function handleSpecAction(action: 'confirm' | 'remove', name: string, skill: string) {
+    setSpecLoading(true)
+    try {
+      const res = await fetch('/api/profile/specializations', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, name, skill }),
+      })
+      if (res.ok) {
+        const { specializations: updated } = await res.json()
+        setSpecializations(updated)
+        toast.success(action === 'confirm' ? 'Specialization confirmed' : 'Specialization removed')
+      }
+    } catch { toast.error('Failed to update specialization') }
+    finally { setSpecLoading(false) }
   }
 
   async function handleUpgrade() {
@@ -1168,6 +1196,69 @@ jobs:
                   </>
                 )}
 
+                {/* ── Specializations ── */}
+                {activeTab === 'specializations' && (
+                  <Section
+                    title="Specializations"
+                    desc="AI-inferred from your session patterns. Confirm or remove specializations that appear on your public profile."
+                  >
+                    {specializations.length === 0 ? (
+                      <div className="rounded-xl border border-foreground/[0.06] bg-foreground/[0.02] p-8 text-center">
+                        <Zap className="w-8 h-8 text-foreground/20 mx-auto mb-3" />
+                        <p className="text-sm text-foreground/40 mb-1">No specializations yet</p>
+                        <p className="text-xs text-foreground/30">
+                          Complete 5+ interview sessions and we&apos;ll infer your specializations automatically.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {specializations.map((spec) => (
+                          <div key={`${spec.skill}-${spec.name}`}
+                            className="flex items-center gap-4 p-4 rounded-xl border border-foreground/[0.06] bg-foreground/[0.02]">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium text-sm">{spec.name}</span>
+                                <span className="text-xs text-foreground/40">· {spec.skill}</span>
+                                {spec.confirmedByUser && (
+                                  <CheckCircle2 className="w-3.5 h-3.5 text-[#2DE2C5]" />
+                                )}
+                              </div>
+                              <div className="text-xs text-foreground/40 mt-0.5">
+                                Score: <span className="font-mono text-foreground/60">{spec.score}</span>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              {!spec.confirmedByUser && (
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleSpecAction('confirm', spec.name, spec.skill)}
+                                  disabled={specLoading}
+                                  className="h-7 px-3 text-xs bg-[#2DE2C5]/10 text-[#2DE2C5] border border-[#2DE2C5]/20 hover:bg-[#2DE2C5]/20"
+                                >
+                                  <CheckCircle2 className="w-3 h-3 mr-1" /> Confirm
+                                </Button>
+                              )}
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleSpecAction('remove', spec.name, spec.skill)}
+                                disabled={specLoading}
+                                className="h-7 px-3 text-xs text-foreground/40 hover:text-red-400"
+                              >
+                                <Trash2 className="w-3 h-3 mr-1" /> Remove
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <p className="text-xs text-foreground/30 leading-relaxed">
+                      Specializations are re-inferred weekly as you complete more sessions.
+                      Confirmed specializations are protected from being overwritten.
+                    </p>
+                  </Section>
+                )}
+
                 {/* ── Privacy ── */}
                 {activeTab === 'privacy' && (
                   <>
@@ -1190,9 +1281,9 @@ jobs:
                     </div>
                   </Section>
                   <Section title="Password" desc="Change your account password.">
-                    {authProvider === 'github' ? (
+                    {authProvider === 'github' || authProvider === 'twitter' ? (
                       <div className="px-4 py-3.5 rounded-xl bg-foreground/[0.03] border border-foreground/[0.05] text-sm text-foreground/50">
-                        Your account uses GitHub login — no password is set.
+                        Your account uses {authProvider === 'twitter' ? 'X/Twitter' : 'GitHub'} login — no password is set.
                       </div>
                     ) : (
                       <div className="space-y-3 max-w-sm">

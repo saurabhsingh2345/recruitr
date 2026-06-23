@@ -51,6 +51,13 @@ export async function buildCandidateSnapshot(
         evidence: s.evidence || [],
       })
     ),
+    specializations: (profile?.specializations || []).map(
+      (sp: { name: string; skill: string; score: number }) => ({
+        name: sp.name,
+        skill: sp.skill,
+        score: sp.score,
+      })
+    ),
     location: profile?.location || '',
     preferences: {
       minCompLpa: user.preferences?.minCompLpa || 0,
@@ -82,17 +89,38 @@ export async function sourceForRole(role: IRoleSpec, limit = 25): Promise<string
   await connectDB()
 
   const query: Record<string, unknown> = { isPublic: { $ne: false } }
+  const andClauses: unknown[] = []
 
   // At least one must-have skill present above (bar - 10) as a coarse pre-filter.
   if (role.mustHave.length > 0) {
-    query.parsedSkills = {
-      $elemMatch: {
-        $or: role.mustHave.map((m) => ({
-          name: { $regex: m.skill, $options: 'i' },
-          proofScore: { $gte: Math.max(0, m.minScore - 10) },
-        })),
+    andClauses.push({
+      parsedSkills: {
+        $elemMatch: {
+          $or: role.mustHave.map((m) => ({
+            name: { $regex: m.skill, $options: 'i' },
+            proofScore: { $gte: Math.max(0, m.minScore - 10) },
+          })),
+        },
       },
-    }
+    })
+  }
+
+  // Pre-filter by specialization if any must-have bar requires it
+  const specBars = role.mustHave.filter(m => m.specialization && m.minSpecScore)
+  for (const bar of specBars) {
+    andClauses.push({
+      specializations: {
+        $elemMatch: {
+          skill: { $regex: bar.skill, $options: 'i' },
+          name: { $regex: bar.specialization!, $options: 'i' },
+          score: { $gte: Math.max(0, (bar.minSpecScore || 0) - 10) },
+        },
+      },
+    })
+  }
+
+  if (andClauses.length > 0) {
+    query['$and'] = andClauses
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
