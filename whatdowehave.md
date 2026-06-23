@@ -111,7 +111,12 @@ Landing (/) → Onboarding (GitHub/X OAuth + resume) → Dashboard
 | HireSignal | `skill`, `proofScoreAtHire`, `sessionCount`, `sessionAvgScore`, `targetRole`, `hiredAt` — permanent, no TTL |
 | VerifiedCard | `cardToken`, `targetRole`, `targetLevel`, `topSkills[]` (name, score, percentile), `sessionCount`, `shareCount` |
 | Handshake | `verdict` (mutualFit, skillMatches[], techBarCleared, compOverlap, locationMatch, stageMatch), `exchanges[]` — immutable at evaluation time |
-| RoleSpec | `mustHave[]` (skill, minScore), `compRange`, `locations`, `stage`, `blind`, `autoSourceEnabled` |
+| RoleSpec | `mustHave[]` (skill, minScore), `compRange`, `locations`,
+
+
+
+
+ `stage`, `blind`, `autoSourceEnabled` |
 
 ---
 

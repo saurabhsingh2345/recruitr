@@ -5,6 +5,8 @@ import { User } from '@/lib/models/User'
 import { InterviewSession } from '@/lib/models/InterviewSession'
 import { Team } from '@/lib/models/Team'
 import { WeeklyBrief } from '@/lib/models/WeeklyBrief'
+import { HireSignal } from '@/lib/models/HireSignal'
+import { VerifiedCard } from '@/lib/models/VerifiedCard'
 
 const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim()).filter(Boolean)
 
@@ -33,6 +35,9 @@ export async function GET() {
     totalBriefs,
     topSkillsAgg,
     dailySessionsAgg,
+    verifiedCardCount,
+    hireSignalUserIds,
+    avgHireScoreAgg,
   ] = await Promise.all([
     User.countDocuments(),
     User.countDocuments({ createdAt: { $gte: thirtyDaysAgo } }),
@@ -58,6 +63,11 @@ export async function GET() {
       },
       { $sort: { _id: 1 } },
     ]),
+    VerifiedCard.countDocuments(),
+    HireSignal.distinct('userId'),
+    HireSignal.aggregate([
+      { $group: { _id: null, avg: { $avg: '$proofScoreAtHire' }, total: { $sum: 1 } } },
+    ]),
   ])
 
   // Build 7-day array with zeros for missing days
@@ -67,6 +77,11 @@ export async function GET() {
     const key = date.toISOString().slice(0, 10)
     return { date: key, count: dailyMap.get(key) || 0 }
   })
+
+  const hiredCount = hireSignalUserIds.length
+  const hireRate = verifiedCardCount > 0 ? Math.round((hiredCount / verifiedCardCount) * 100) : 0
+  const avgProofScoreAtHire = avgHireScoreAgg[0]?.avg ? Math.round(avgHireScoreAgg[0].avg) : null
+  const totalHireSignals = avgHireScoreAgg[0]?.total ?? 0
 
   return NextResponse.json({
     users: { total: totalUsers, newLast30: newUsersLast30 },
@@ -81,5 +96,12 @@ export async function GET() {
     briefs: { total: totalBriefs },
     topSkills: topSkillsAgg.map((s: { _id: string; count: number }) => ({ skill: s._id, count: s.count })),
     dailySessions,
+    verification: {
+      verifiedCards: verifiedCardCount,
+      hiredCandidates: hiredCount,
+      hireRate,
+      totalHireSignals,
+      avgProofScoreAtHire,
+    },
   })
 }

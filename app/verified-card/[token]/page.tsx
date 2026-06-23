@@ -3,8 +3,31 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { connectDB } from '@/lib/mongodb'
 import { VerifiedCard } from '@/lib/models/VerifiedCard'
+import { HireSignal } from '@/lib/models/HireSignal'
 import { User } from '@/lib/models/User'
 import { VerifiedCardShare } from '@/components/verified-card/VerifiedCardShare'
+
+interface HireStats {
+  verifiedCount: number
+  hiredCount: number
+  hireRate: number
+  totalHireSignals: number
+}
+
+async function getHireStats(): Promise<HireStats> {
+  const [verifiedCount, hiredIds, agg] = await Promise.all([
+    VerifiedCard.countDocuments(),
+    HireSignal.distinct('userId'),
+    HireSignal.aggregate([{ $group: { _id: null, total: { $sum: 1 } } }]),
+  ])
+  const hiredCount = hiredIds.length
+  return {
+    verifiedCount,
+    hiredCount,
+    hireRate: verifiedCount > 0 ? Math.round((hiredCount / verifiedCount) * 100) : 0,
+    totalHireSignals: agg[0]?.total ?? 0,
+  }
+}
 
 interface TopSkill { name: string; score: number; percentile: number }
 
@@ -70,6 +93,7 @@ export default async function VerifiedCardPage({ params }: { params: Promise<{ t
   if (!data) notFound()
 
   const { card, user } = data
+  const hireStats = await getHireStats()
   const roleLabel = [card.targetLevel, card.targetRole].filter(Boolean).join(' ')
   const base = process.env.NEXTAUTH_URL || 'http://localhost:3000'
   const cardUrl = `${base}/verified-card/${token}`
@@ -160,8 +184,33 @@ export default async function VerifiedCardPage({ params }: { params: Promise<{ t
           </Link>
         </div>
 
+        {/* Social proof */}
+        {hireStats.verifiedCount > 0 && (
+          <div className="mt-5 flex items-center justify-center gap-4 flex-wrap">
+            <span className="text-xs text-white/25">
+              {hireStats.verifiedCount} verified candidate{hireStats.verifiedCount !== 1 ? 's' : ''}
+            </span>
+            {hireStats.hireRate > 0 && (
+              <>
+                <span className="text-white/10">·</span>
+                <span className="text-xs font-semibold text-[#2DE2C5]/70">
+                  {hireStats.hireRate}% hire rate
+                </span>
+              </>
+            )}
+            {hireStats.totalHireSignals > 0 && (
+              <>
+                <span className="text-white/10">·</span>
+                <span className="text-xs text-white/25">
+                  {hireStats.totalHireSignals} hire signal{hireStats.totalHireSignals !== 1 ? 's' : ''} logged
+                </span>
+              </>
+            )}
+          </div>
+        )}
+
         {/* Intervue attribution */}
-        <p className="text-center text-xs text-white/20 mt-6">
+        <p className="text-center text-xs text-white/20 mt-4">
           Verified by{' '}
           <a href={base} className="text-[#2DE2C5]/50 hover:text-[#2DE2C5]">Intervue</a>
           {' '}— rigorous AI-proctored assessments

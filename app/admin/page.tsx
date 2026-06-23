@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { CandidateNav } from '@/components/CandidateNav'
-import { Loader2, Users, Activity, Building2, Mail, TrendingUp } from 'lucide-react'
+import { Loader2, Users, Activity, Building2, Mail, TrendingUp, ShieldCheck } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 
 interface AdminStats {
@@ -12,6 +12,13 @@ interface AdminStats {
   briefs: { total: number }
   topSkills: { skill: string; count: number }[]
   dailySessions: { date: string; count: number }[]
+  verification: {
+    verifiedCards: number
+    hiredCandidates: number
+    hireRate: number
+    totalHireSignals: number
+    avgProofScoreAtHire: number | null
+  }
 }
 
 function StatCard({ label, value, sub, color }: { label: string; value: number | string; sub?: string; color: string }) {
@@ -103,6 +110,41 @@ export default function AdminPage() {
               </Bar>
             </BarChart>
           </ResponsiveContainer>
+        </div>
+
+        {/* Verification + HireSignal */}
+        <div className="rounded-xl border border-[#2DE2C5]/20 bg-[#2DE2C5]/[0.02] p-5 mb-6">
+          <div className="flex items-center gap-2 mb-4">
+            <ShieldCheck className="w-4 h-4 text-[#2DE2C5]" />
+            <span className="text-sm font-medium">Verified card outcomes</span>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="bg-white/[0.03] rounded-lg p-3 text-center">
+              <div className="text-2xl font-bold font-mono text-[#2DE2C5]">{stats.verification.verifiedCards}</div>
+              <div className="text-[10px] text-white/30 mt-0.5">cards issued</div>
+            </div>
+            <div className="bg-white/[0.03] rounded-lg p-3 text-center">
+              <div className="text-2xl font-bold font-mono text-[#3FC5F0]">{stats.verification.hiredCandidates}</div>
+              <div className="text-[10px] text-white/30 mt-0.5">unique hires</div>
+            </div>
+            <div className="bg-white/[0.03] rounded-lg p-3 text-center">
+              <div className="text-2xl font-bold font-mono text-[#8B7CF8]">
+                {stats.verification.verifiedCards > 0 ? `${stats.verification.hireRate}%` : '—'}
+              </div>
+              <div className="text-[10px] text-white/30 mt-0.5">hire rate</div>
+            </div>
+            <div className="bg-white/[0.03] rounded-lg p-3 text-center">
+              <div className="text-2xl font-bold font-mono text-[#C77DFF]">
+                {stats.verification.avgProofScoreAtHire != null ? stats.verification.avgProofScoreAtHire : '—'}
+              </div>
+              <div className="text-[10px] text-white/30 mt-0.5">avg score at hire</div>
+            </div>
+          </div>
+          {stats.verification.totalHireSignals > 0 && (
+            <p className="text-xs text-white/25 mt-3">
+              Based on {stats.verification.totalHireSignals} hire signal{stats.verification.totalHireSignals !== 1 ? 's' : ''} logged
+            </p>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

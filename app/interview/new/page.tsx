@@ -45,7 +45,7 @@ const FORMATS = [
     desc: 'STAR-based situational questions. Stories from your actual experience.',
     duration: '20–30 min',
     color: '#f59e0b',
-    group: 'engineering',
+    group: 'all',
   },
   {
     id: 'gap',
@@ -54,7 +54,7 @@ const FORMATS = [
     desc: '10-minute focused drill on one skill gap. Quick, targeted, effective.',
     duration: '10 min',
     color: '#f43f5e',
-    group: 'engineering',
+    group: 'all',
   },
   {
     id: 'pm_case',
@@ -174,7 +174,7 @@ export default function NewInterviewPage() {
                 {group === 'engineering' ? 'Engineering roles' : 'Non-engineering roles'}
               </div>
               <div className="space-y-2">
-                {FORMATS.filter((f) => f.group === group).map((format, i) => (
+                {FORMATS.filter((f) => f.group === group || f.group === 'all').map((format, i) => (
                   <motion.button
                     key={format.id}
                     initial={{ opacity: 0, y: 8 }}

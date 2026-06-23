@@ -3,7 +3,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import {
   GitBranch, ExternalLink, MapPin, Shield, Star, Briefcase,
-  GraduationCap, CheckCircle2, TrendingUp, Calendar, Zap,
+  GraduationCap, CheckCircle2, TrendingUp, Calendar, Zap, ShieldCheck,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -95,6 +95,10 @@ function formatLabel(fmt: string) {
     project_deepdive: 'Project Deep-dive',
     behavioural: 'Behavioural',
     gap: 'Gap Analysis',
+    pm_case: 'PM Case Study',
+    design_critique: 'Design Critique',
+    ops_case: 'Ops / Program Mgmt',
+    sales_discovery: 'Sales Discovery',
   }
   return labels[fmt] || fmt
 }
@@ -121,7 +125,7 @@ export default async function PublicProfilePage({ params, searchParams }: Params
   const data = await getProfile(username)
   if (!data) notFound()
 
-  const { user, profile, sessions = [] } = data
+  const { user, profile, sessions = [], verifiedCard = null } = data
 
   /* ── Theme routing ── */
   const resolvedTheme = themeOverride || profile.portfolioTheme
@@ -243,6 +247,36 @@ export default async function PublicProfilePage({ params, searchParams }: Params
             </div>
           </div>
         </header>
+
+        {/* ── Verified Card ── */}
+        {verifiedCard && (
+          <section>
+            <Link
+              href={`/verified-card/${verifiedCard.cardToken}`}
+              className="flex items-center justify-between p-4 rounded-xl border border-[#2DE2C5]/30 bg-[#2DE2C5]/[0.04] hover:bg-[#2DE2C5]/[0.08] transition-colors group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg bg-[#2DE2C5]/15 flex items-center justify-center shrink-0">
+                  <ShieldCheck className="w-4.5 h-4.5 text-[#2DE2C5]" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-[#2DE2C5]">Intervue Verified</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#2DE2C5]/10 text-[#2DE2C5] border border-[#2DE2C5]/20 font-medium">Card</span>
+                  </div>
+                  <p className="text-sm font-medium text-white mt-0.5">
+                    {[verifiedCard.targetLevel, verifiedCard.targetRole].filter(Boolean).join(' ')}
+                  </p>
+                  <p className="text-xs text-[#888FC0] mt-0.5">
+                    {verifiedCard.sessionCount} sessions · Issued {new Date(verifiedCard.issuedAt).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}
+                    {verifiedCard.topSkills?.[0] && ` · Top: ${verifiedCard.topSkills[0].name} ${verifiedCard.topSkills[0].score}/100`}
+                  </p>
+                </div>
+              </div>
+              <ExternalLink className="w-4 h-4 text-[#2DE2C5]/50 group-hover:text-[#2DE2C5] transition-colors shrink-0" />
+            </Link>
+          </section>
+        )}
 
         {/* ── Specialization Breakdown ── */}
         {specializations.length > 0 && (

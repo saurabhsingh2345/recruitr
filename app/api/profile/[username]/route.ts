@@ -3,6 +3,7 @@ import { connectDB } from '@/lib/mongodb'
 import { Profile } from '@/lib/models/Profile'
 import { User } from '@/lib/models/User'
 import { InterviewSession } from '@/lib/models/InterviewSession'
+import { VerifiedCard } from '@/lib/models/VerifiedCard'
 
 export async function GET(
   _req: NextRequest,
@@ -19,15 +20,16 @@ export async function GET(
     const profile = await Profile.findOne({ userId: user._id, isPublic: true })
     if (!profile) return NextResponse.json({ error: 'Profile not found or private' }, { status: 404 })
 
-    // Fetch completed sessions for rigor visibility + progression timeline
-    const sessions = await InterviewSession.find({
-      userId: user._id,
-      status: 'completed',
-    })
-      .select('targetSkill format scores completedAt rigorConditions scoreUpdate insightReport.specializationImpact')
-      .sort({ completedAt: -1 })
-      .limit(20)
-      .lean()
+    const [sessions, verifiedCard] = await Promise.all([
+      InterviewSession.find({ userId: user._id, status: 'completed' })
+        .select('targetSkill format scores completedAt rigorConditions scoreUpdate insightReport.specializationImpact')
+        .sort({ completedAt: -1 })
+        .limit(20)
+        .lean(),
+      VerifiedCard.findOne({ userId: user._id })
+        .select('targetRole targetLevel topSkills sessionCount issuedAt cardToken shareCount')
+        .lean(),
+    ])
 
     return NextResponse.json({
       user: {
@@ -53,6 +55,7 @@ export async function GET(
         updatedAt: profile.updatedAt,
       },
       sessions,
+      verifiedCard: verifiedCard ?? null,
     })
   } catch (error) {
     console.error('Profile fetch error:', error)
