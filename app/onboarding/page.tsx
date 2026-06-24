@@ -30,7 +30,7 @@ function OnboardingPageInner() {
   const [isDragging, setIsDragging] = useState(false)
   const refSentRef = useRef(false)
 
-  // Persist proof-page referrer and referral code to localStorage before GitHub OAuth redirect
+  // Persist proof-page referrer, referral code, and assessment token before GitHub OAuth redirect
   useEffect(() => {
     const ref = searchParams.get('ref')
     const skill = searchParams.get('skill')
@@ -43,6 +43,10 @@ function OnboardingPageInner() {
     // Store referral code if present (e.g. ?ref=ABC12345 without skill param)
     if (ref && ref !== 'proof' && ref.length === 8) {
       localStorage.setItem('referral_code', ref)
+    }
+    const assessmentToken = searchParams.get('assessmentToken')
+    if (assessmentToken) {
+      localStorage.setItem('assessment_token', assessmentToken)
     }
   }, [searchParams])
 
@@ -152,6 +156,16 @@ function OnboardingPageInner() {
         body: JSON.stringify({ targetRole: selectedRole }),
       })
       await fetch('/api/profile/generate', { method: 'POST' })
+
+      // Claim assessment token if present
+      const assessmentToken = searchParams.get('assessmentToken') || localStorage.getItem('assessment_token')
+      if (assessmentToken) {
+        await fetch(`/api/assess/${assessmentToken}/claim`, { method: 'POST' }).catch(() => {})
+        localStorage.removeItem('assessment_token')
+        window.location.href = '/dashboard?assessmentClaimed=1'
+        return
+      }
+
       window.location.href = '/dashboard'
     } catch {
       window.location.href = '/dashboard'

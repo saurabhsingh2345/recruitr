@@ -15,6 +15,7 @@ import { Badge } from '@/components/ui/badge'
 import { getScoreColor, getScoreLabel } from '@/lib/scoring'
 import { toast } from 'sonner'
 import { FormattedMessage } from '@/components/interview/FormattedMessage'
+import { getTrackById } from '@/lib/data/companyTracks'
 
 interface Message {
   role: 'ai' | 'user'
@@ -59,11 +60,13 @@ interface Report {
     nextSessionRec?: NextSessionRec | null
     progressionSignal?: string
     specializationImpact?: string
+    linkedInDraft?: string
     generatedAt: string
   }
   completedAt: string
   scoreUpdate: ScoreUpdate | null
   companyMode?: { company: string; jdSnippet: string; style: string } | null
+  metadata?: { companyTrackId?: string; roundIndex?: number } | null
   messages?: Message[]
   cohortPercentile?: number
 }
@@ -254,6 +257,9 @@ export default function InterviewReportPage() {
   const [sharing, setSharing] = useState(false)
   const [shareUrl, setShareUrl] = useState('')
   const [isPro, setIsPro] = useState(false)
+  const [linkedInDraft, setLinkedInDraft] = useState('')
+  const [linkedInDismissed, setLinkedInDismissed] = useState(false)
+  const [linkedInCopied, setLinkedInCopied] = useState(false)
   const reportRef = useRef<HTMLDivElement>(null)
 
   async function handleShare() {
@@ -291,6 +297,9 @@ export default function InterviewReportPage() {
           setReport(data)
           if (data.scoreUpdate?.isFirstScore && data.scoreUpdate?.after >= 60) {
             setShowFirstScore(true)
+          }
+          if (data.insightReport?.linkedInDraft) {
+            setLinkedInDraft(data.insightReport.linkedInDraft)
           }
         }
       } catch {
@@ -723,6 +732,55 @@ export default function InterviewReportPage() {
                   />
                 </motion.div>
               )}
+
+              {/* LinkedIn share card (milestone reached) */}
+              {linkedInDraft && !linkedInDismissed && (
+                <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.44 }}
+                  className="node-panel p-5 relative">
+                  <button
+                    onClick={() => setLinkedInDismissed(true)}
+                    className="absolute top-4 right-4 text-foreground/30 hover:text-foreground/60 transition-colors text-lg leading-none"
+                    aria-label="Dismiss"
+                  >×</button>
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-8 h-8 rounded-lg bg-[#0A66C2]/15 flex items-center justify-center shrink-0">
+                      <Share2 className="w-4 h-4 text-[#0A66C2]" />
+                    </div>
+                    <div>
+                      <div className="text-sm font-semibold">Share your win</div>
+                      <div className="text-xs text-foreground/40">You hit a milestone — let your network know</div>
+                    </div>
+                  </div>
+                  <textarea
+                    value={linkedInDraft}
+                    onChange={e => setLinkedInDraft(e.target.value)}
+                    rows={5}
+                    className="w-full rounded-lg bg-foreground/[0.04] border border-foreground/[0.08] text-sm text-foreground/70 p-3 resize-none focus:outline-none focus:border-[#0A66C2]/40 transition-colors leading-relaxed"
+                  />
+                  <div className="flex items-center gap-2 mt-3">
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(linkedInDraft)
+                        setLinkedInCopied(true)
+                        setTimeout(() => setLinkedInCopied(false), 2000)
+                      }}
+                      className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-foreground/[0.06] hover:bg-foreground/[0.1] text-foreground/50 hover:text-foreground transition-all font-medium"
+                    >
+                      {linkedInCopied ? <Check className="w-3.5 h-3.5 text-[#2DE2C5]" /> : <Copy className="w-3.5 h-3.5" />}
+                      {linkedInCopied ? 'Copied' : 'Copy'}
+                    </button>
+                    <a
+                      href={`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(typeof window !== 'undefined' ? window.location.href : '')}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-[#0A66C2]/15 hover:bg-[#0A66C2]/25 text-[#0A66C2] transition-all font-semibold border border-[#0A66C2]/20"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      Post to LinkedIn
+                    </a>
+                  </div>
+                </motion.div>
+              )}
             </div>
           ) : (
             /* Transcript tab */
@@ -760,6 +818,48 @@ export default function InterviewReportPage() {
               )}
             </motion.div>
           )}
+
+          {/* Company track CTA */}
+          {(() => {
+            const trackId = report.metadata?.companyTrackId
+            const rIdx = report.metadata?.roundIndex ?? 0
+            if (!trackId) return null
+            const track = getTrackById(trackId)
+            if (!track) return null
+            const nextRound = track.rounds[rIdx + 1]
+            return (
+              <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.46 }}
+                className="node-panel p-5">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-8 h-8 rounded-lg bg-[#8B7CF8]/10 flex items-center justify-center shrink-0">
+                    <span className="text-[#8B7CF8] font-bold text-xs">{track.logo}</span>
+                  </div>
+                  <div>
+                    <div className="text-sm font-semibold">{track.name} Track</div>
+                    <div className="text-xs text-foreground/40">Round {rIdx + 1} of {track.rounds.length} complete</div>
+                  </div>
+                </div>
+                {nextRound ? (
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1">
+                      <div className="text-xs text-foreground/40 mb-0.5">Next</div>
+                      <div className="text-sm font-medium">{nextRound.title}</div>
+                    </div>
+                    <Link href={`/interview/new?companyTrackId=${trackId}&roundIndex=${rIdx + 1}&format=${nextRound.format}&skill=${encodeURIComponent(track.targetSkills[0] || '')}`}>
+                      <Button size="sm" className="btn-supernova font-semibold text-xs h-8 px-4 shrink-0">
+                        Continue <ArrowRight className="w-3 h-3 ml-1" />
+                      </Button>
+                    </Link>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-[#2DE2C5]" />
+                    <span className="text-sm text-[#2DE2C5] font-semibold">Track complete — all {track.rounds.length} rounds done!</span>
+                  </div>
+                )}
+              </motion.div>
+            )
+          })()}
 
           {/* Footer CTAs */}
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}

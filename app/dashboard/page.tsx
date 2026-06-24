@@ -15,6 +15,7 @@ import {
   Award,
   ShieldCheck,
   Share2,
+  Building2,
 } from 'lucide-react'
 import { LineChart, Line, ResponsiveContainer } from 'recharts'
 import { CandidateNav } from '@/components/CandidateNav'
@@ -168,6 +169,7 @@ export default function DashboardPage() {
   const [data, setData] = useState<ProfileData | null>(null)
   const [sessions, setSessions] = useState<Session[]>([])
   const [loading, setLoading] = useState(true)
+  const [assessmentClaimedBanner, setAssessmentClaimedBanner] = useState(false)
   const [startingInterview, setStartingInterview] = useState(false)
   const [selectedFormat, setSelectedFormat] = useState('')
   const [selectedSkill, setSelectedSkill] = useState('')
@@ -184,6 +186,16 @@ export default function DashboardPage() {
     if (!username) return
     if (localStorage.getItem(`ob_skip_${username}`)) setOnboardingDismissed(true)
   }, [data?.user?.username])
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      if (params.get('assessmentClaimed') === '1') {
+        setAssessmentClaimedBanner(true)
+        window.history.replaceState({}, '', '/dashboard')
+      }
+    }
+  }, [])
 
   useEffect(() => {
     async function load() {
@@ -337,6 +349,15 @@ export default function DashboardPage() {
       />
 
       <main className="flex-1 overflow-y-auto">
+        {/* Assessment claimed banner */}
+        {assessmentClaimedBanner && (
+          <div className="bg-[#2DE2C5]/10 border-b border-[#2DE2C5]/20 px-6 py-3 flex items-center justify-between">
+            <span className="text-sm text-[#2DE2C5]">
+              Welcome to Intervue. Your assessment scores have been added to your profile.
+            </span>
+            <button onClick={() => setAssessmentClaimedBanner(false)} className="text-[#2DE2C5]/60 hover:text-[#2DE2C5] text-xs ml-4">✕</button>
+          </div>
+        )}
         {/* Top bar */}
         <div className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur px-4 sm:px-8 h-14 flex items-center justify-between">
           <div className="text-sm text-foreground/40">
@@ -677,6 +698,21 @@ export default function DashboardPage() {
                   ))}
                 </div>
               </div>
+
+              {/* Company tracks CTA */}
+              <Link
+                href="/companies"
+                className="flex items-center gap-3 px-4 py-3 rounded-xl border border-[#8B7CF8]/20 bg-[#8B7CF8]/[0.04] hover:bg-[#8B7CF8]/[0.08] transition-colors group"
+              >
+                <div className="w-8 h-8 rounded-lg bg-[#8B7CF8]/15 flex items-center justify-center shrink-0">
+                  <Building2 className="w-4 h-4 text-[#8B7CF8]" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-semibold text-[#8B7CF8]">Company tracks</div>
+                  <div className="text-[10px] text-foreground/35">Google, Meta, Stripe, Razorpay + 16 more</div>
+                </div>
+                <ChevronRight className="w-3.5 h-3.5 text-foreground/20 group-hover:text-[#8B7CF8] transition-colors shrink-0" />
+              </Link>
 
               {/* Wrapped CTA */}
               {completedSessions.length >= 3 && (() => {

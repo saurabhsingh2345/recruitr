@@ -3,6 +3,8 @@ import mongoose, { Schema, Document, Types } from 'mongoose'
 export interface ISavedResume extends Document {
   userId: Types.ObjectId
   jobTitle: string
+  matchScore?: number
+  topGaps?: string[]
   resume: {
     name: string
     headline: string
@@ -18,6 +20,8 @@ export interface ISavedResume extends Document {
 const SavedResumeSchema = new Schema<ISavedResume>({
   userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
   jobTitle: { type: String, required: true },
+  matchScore: { type: Number },
+  topGaps: { type: [String], default: [] },
   resume: {
     name: { type: String, default: '' },
     headline: { type: String, default: '' },

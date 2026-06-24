@@ -325,6 +325,25 @@ Return ONLY valid JSON (no markdown, no code fences):
       )
     }
 
+    // Check if a share-worthy milestone was crossed (first time reaching 60/70/80/90)
+    const MILESTONES = [90, 80, 70, 60]
+    const crossedMilestone = MILESTONES.find(
+      m => scoreUpdateData.before < m && scoreUpdateData.after >= m
+    )
+    if (crossedMilestone) {
+      try {
+        const proofUrl = `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/proof/${session.user.id}/${encodeURIComponent(interviewSession.targetSkill)}`
+        const { text: draftText } = await generateText({
+          model: await getModel(),
+          prompt: `Write a short LinkedIn post (3-4 sentences, first person, conversational tone, no hashtag spam, no emojis) celebrating that I just scored ${scoreUpdateData.after}/100 on a ${interviewSession.format.replace('_', ' ')} interview for ${interviewSession.targetSkill} — hitting the ${crossedMilestone}-point milestone — on Intervue. Mention the specific skill and score naturally. End with this proof link: ${proofUrl}. Sound genuine and specific, not generic or braggy. Output only the post text.`,
+          maxOutputTokens: 200,
+        })
+        interviewSession.insightReport.linkedInDraft = draftText.trim()
+      } catch {
+        // Non-fatal — draft generation failure should not block the response
+      }
+    }
+
     // Store scoreUpdate on the session so the report page can read it
     interviewSession.scoreUpdate = scoreUpdateData
     await interviewSession.save()
@@ -359,6 +378,7 @@ Return ONLY valid JSON (no markdown, no code fences):
       scoreUpdate: scoreUpdateData,
       cohortPercentile: profile?.cohortPercentile ?? 0,
       aiVerdict,
+      linkedInDraft: interviewSession.insightReport.linkedInDraft || null,
     })
   } catch (error) {
     console.error('Interview complete error:', error)

@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { format, targetSkill, companyJD, rigorConditions } = await req.json()
+    const { format, targetSkill, companyJD, rigorConditions, companyTrackId, roundIndex } = await req.json()
     await connectDB()
 
     const user = await User.findById(session.user.id)
@@ -118,6 +118,7 @@ Start the interview now with your opening question. Be specific to their actual 
       memoryContext,
       ...(companyModeData ? { companyMode: companyModeData } : {}),
       ...(rigorConditions ? { rigorConditions: { ...rigorConditions, capturedAt: new Date() } } : {}),
+      ...(companyTrackId ? { metadata: { companyTrackId, roundIndex: roundIndex ?? 0 } } : {}),
     })
 
     return NextResponse.json({

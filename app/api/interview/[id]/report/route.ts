@@ -21,7 +21,7 @@ export async function GET(
 
     const [interviewSession, userDoc, profile] = await Promise.all([
       InterviewSession.findOne({ _id: id, userId: session.user.id })
-        .select('format targetSkill scores insightReport completedAt status messages scoreUpdate companyMode'),
+        .select('format targetSkill scores insightReport completedAt status messages scoreUpdate companyMode metadata'),
       User.findById(session.user.id).select('username').lean(),
       Profile.findOne({ userId: session.user.id }).select('cohortPercentile').lean(),
     ])
@@ -39,6 +39,7 @@ export async function GET(
       status: interviewSession.status,
       scoreUpdate: interviewSession.scoreUpdate || null,
       companyMode: interviewSession.companyMode || null,
+      metadata: interviewSession.metadata || null,
       username: (userDoc as { username?: string } | null)?.username || '',
       cohortPercentile: (profile as { cohortPercentile?: number } | null)?.cohortPercentile ?? 0,
       messages: (interviewSession.messages || []).map((m: { role: string; content: string }) => ({

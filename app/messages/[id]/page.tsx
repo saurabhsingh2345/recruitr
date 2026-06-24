@@ -567,6 +567,22 @@ export default function ThreadPage() {
         </div>
       )}
 
+      {/* Candidate: offer extended → negotiate with Atlas banner */}
+      {!isRecruiter && app.status === 'offer_extended' && (
+        <div className="mx-4 mt-2 p-3 rounded-xl border border-[#8B7CF8]/30 bg-[#8B7CF8]/[0.06] flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-sm font-semibold text-[#8B7CF8]">You have an offer</div>
+            <div className="text-xs text-[#AEB5E0] leading-relaxed">Before you respond — let Atlas help you negotiate.</div>
+          </div>
+          <Link
+            href={`/agent?tab=negotiate&offerId=${app._id}`}
+            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-[#8B7CF8]/15 text-[#8B7CF8] hover:bg-[#8B7CF8]/25 border border-[#8B7CF8]/25 font-semibold transition-colors shrink-0"
+          >
+            Negotiate with Atlas <ExternalLink className="w-3 h-3" />
+          </Link>
+        </div>
+      )}
+
       {/* Candidate: offer extended → mark hired banner */}
       {canMarkHired && (
         <div className="mx-4 mt-2 p-3 rounded-xl border border-[#2DE2C5]/30 bg-[#2DE2C5]/5 flex items-center justify-between gap-3">

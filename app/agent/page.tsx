@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, useRef } from 'react'
+import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -33,10 +34,18 @@ interface CareerGoal {
   targetSalaryLPA: number
 }
 
+interface JdMatchAlert {
+  jobTitle: string
+  matchScore: number
+  topGap: string
+  sessionLink: string
+}
+
 interface AtlasContext {
   proactiveInsight: { skill: string; score: number; daysIdle: number | null; reason: string; goalContext?: string } | null
   pendingHandshakes: number
   careerGoal?: CareerGoal
+  jdMatchAlert?: JdMatchAlert | null
 }
 
 interface SkillMatch { skill: string; required: number; candidateScore: number | null; cleared: boolean }
@@ -137,10 +146,12 @@ const RIGHT_TABS: { id: RightTab; label: string }[] = [
 /* ── Main Page ───────────────────────────────────────────────── */
 
 export default function AgentPage() {
+  const searchParams = useSearchParams()
   const [handshakes, setHandshakes] = useState<Handshake[]>([])
   const [atlasCtx, setAtlasCtx] = useState<AtlasContext | null>(null)
   const [skills, setSkills] = useState<Skill[]>([])
   const [loading, setLoading] = useState(true)
+  const [jdMatchDismissed, setJdMatchDismissed] = useState(false)
   const [showGoalForm, setShowGoalForm] = useState(false)
   const [goalForm, setGoalForm] = useState({ targetRole: '', targetLevel: '', targetStage: 'Any', targetLocation: 'Any', targetSalaryLPA: '' })
   const [savingGoal, setSavingGoal] = useState(false)
@@ -156,6 +167,8 @@ export default function AgentPage() {
   const [learningSkill, setLearningSkill] = useState<string | null>(null)
   const [learningGoal, setLearningGoal] = useState<string>('proficient')
   const [rightTab, setRightTab] = useState<RightTab>('skills')
+  const [negotiateOfferId, setNegotiateOfferId] = useState<string | null>(null)
+  const [negotiateOfferData, setNegotiateOfferData] = useState<{ role?: string; company?: string } | null>(null)
 
   // Chat state
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
@@ -221,6 +234,37 @@ export default function AgentPage() {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [chatMessages])
+
+  // Handle ?tab=negotiate&offerId=xxx URL params
+  useEffect(() => {
+    const tab = searchParams.get('tab')
+    const offerId = searchParams.get('offerId')
+    if (tab === 'negotiate') {
+      setRightTab('negotiate')
+      if (offerId) {
+        setNegotiateOfferId(offerId)
+        fetch(`/api/applications/${offerId}`)
+          .then((r) => r.ok ? r.json() : null)
+          .then((d) => {
+            if (d?.application) {
+              const { jobTitle, recruiterInfo } = d.application
+              setNegotiateOfferData({ role: jobTitle || '', company: recruiterInfo?.company || '' })
+            }
+          })
+          .catch(() => {})
+      }
+    }
+
+    const dismissed = localStorage.getItem('jd_match_alert_dismissed')
+    if (dismissed && Date.now() - parseInt(dismissed) < 24 * 60 * 60 * 1000) {
+      setJdMatchDismissed(true)
+    }
+  }, [searchParams])
+
+  function dismissJdMatch() {
+    setJdMatchDismissed(true)
+    localStorage.setItem('jd_match_alert_dismissed', String(Date.now()))
+  }
 
   async function sendChat(e?: React.FormEvent) {
     e?.preventDefault()
@@ -346,6 +390,29 @@ export default function AgentPage() {
 
         {/* Chat messages */}
         <div className="flex-1 overflow-y-auto px-4 sm:px-5 py-4 space-y-3">
+          {/* JD match alert */}
+          {atlasCtx?.jdMatchAlert && !jdMatchDismissed && (
+            <div className="rounded-xl border border-[#f59e0b]/20 bg-[#f59e0b]/[0.04] p-4 relative">
+              <button onClick={dismissJdMatch} className="absolute top-3 right-3 text-[#888FC0] hover:text-white">
+                <X className="w-3.5 h-3.5" />
+              </button>
+              <div className="flex items-start gap-2.5">
+                <Zap className="w-4 h-4 text-[#f59e0b] shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm leading-relaxed">
+                    You recently generated a resume for{' '}
+                    <strong className="text-white">{atlasCtx.jdMatchAlert.jobTitle}</strong>. Your match score is{' '}
+                    <strong className="text-[#f59e0b]">{atlasCtx.jdMatchAlert.matchScore}%</strong>. The biggest gap is{' '}
+                    <strong className="text-white">{atlasCtx.jdMatchAlert.topGap}</strong>.
+                  </p>
+                  <a href={atlasCtx.jdMatchAlert.sessionLink}
+                    className="inline-flex items-center gap-1 mt-2 text-xs font-semibold text-[#2DE2C5] hover:text-[#1fb89e] transition-colors">
+                    Practice it now <ChevronDown className="w-3 h-3 rotate-[-90deg]" />
+                  </a>
+                </div>
+              </div>
+            </div>
+          )}
           <AnimatePresence initial={false}>
             {chatMessages.map((msg, i) => (
               <motion.div
@@ -778,6 +845,20 @@ export default function AgentPage() {
           </div>
 
           <div className={rightTab === 'negotiate' ? '' : 'hidden'}>
+            {negotiateOfferData && (
+              <div className="rounded-xl border border-[#2DE2C5]/20 bg-[#2DE2C5]/[0.04] p-4 mb-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Sparkles className="w-3.5 h-3.5 text-[#2DE2C5]" />
+                  <span className="text-xs font-semibold text-[#2DE2C5]">Offer detected</span>
+                </div>
+                <p className="text-sm text-[#AEB5E0] leading-relaxed">
+                  I can see you have an offer for{' '}
+                  {negotiateOfferData.role && <strong className="text-white">{negotiateOfferData.role}</strong>}
+                  {negotiateOfferData.company && <> at <strong className="text-white">{negotiateOfferData.company}</strong></>}.
+                  {' '}Tell me the offered salary and I&apos;ll help you evaluate it and prepare your counter.
+                </p>
+              </div>
+            )}
             <NegotiationCoach />
           </div>
         </div>

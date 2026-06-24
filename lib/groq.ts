@@ -1,50 +1,21 @@
-import { createOpenAI } from '@ai-sdk/openai'
 import { createGroq } from '@ai-sdk/groq'
 
-const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL ?? 'http://localhost:11434/v1'
-export const MODEL = process.env.OLLAMA_MODEL ?? 'llama3.2'
 const GROQ_MODEL = 'llama-3.3-70b-versatile'
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const ollamaProvider = createOpenAI({ baseURL: OLLAMA_BASE_URL, apiKey: 'ollama', compatibility: 'compatible' } as any)
+// Legacy export kept so existing imports don't break
+export const MODEL = GROQ_MODEL
 
-const groqProvider = process.env.GROQ_API_KEY
-  ? createGroq({ apiKey: process.env.GROQ_API_KEY })
-  : null
+const groqProvider = createGroq({ apiKey: process.env.GROQ_API_KEY ?? '' })
 
-// Cache availability check for 30 seconds so every request doesn't probe Ollama
-let _ollamaOk: boolean | null = null
-let _lastCheck = 0
-
-async function isOllamaRunning(): Promise<boolean> {
-  const now = Date.now()
-  if (_ollamaOk !== null && now - _lastCheck < 30_000) return _ollamaOk
-  try {
-    const healthUrl = OLLAMA_BASE_URL.replace(/\/v1\/?$/, '')
-    const res = await fetch(`${healthUrl}/api/tags`, {
-      signal: AbortSignal.timeout(1500),
-    })
-    _ollamaOk = res.ok
-  } catch {
-    _ollamaOk = false
+export function getModel() {
+  if (!process.env.GROQ_API_KEY) {
+    throw new Error('GROQ_API_KEY is not set.')
   }
-  _lastCheck = now
-  return _ollamaOk
+  return groqProvider(GROQ_MODEL)
 }
 
-export async function getModel() {
-  if (await isOllamaRunning()) {
-    return ollamaProvider(MODEL)
-  }
-  if (groqProvider) {
-    console.info('[AI] Ollama unreachable — falling back to Groq')
-    return groqProvider(GROQ_MODEL)
-  }
-  throw new Error('No AI provider available. Start Ollama or set GROQ_API_KEY.')
-}
-
-// Keep direct export for any legacy synchronous callers
-export const groq = ollamaProvider
+// Legacy export
+export const groq = groqProvider
 
 export const INTERVIEW_SYSTEM_PROMPT = `You are a senior software engineer at a top tech company conducting a collaborative technical interview. Your style:
 - Warm, curious, and encouraging — feel like a pair programmer, not an interrogator

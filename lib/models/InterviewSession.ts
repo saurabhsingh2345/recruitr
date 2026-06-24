@@ -39,6 +39,7 @@ export interface IInsightReport {
   nextSessionRec: INextSessionRec | null
   progressionSignal: string
   specializationImpact: string
+  linkedInDraft?: string
   generatedAt: Date
 }
 
@@ -51,7 +52,7 @@ export interface IRigorConditions {
 }
 
 export interface IInterviewSession extends Document {
-  userId: Types.ObjectId
+  userId?: Types.ObjectId
   format: 'coding' | 'system_design' | 'project_deepdive' | 'behavioural' | 'gap' | 'pm_case' | 'design_critique' | 'ops_case' | 'sales_discovery'
   targetSkill: string
   status: 'in_progress' | 'completed' | 'abandoned'
@@ -75,12 +76,15 @@ export interface IInterviewSession extends Document {
   companyMode?: { jdSnippet: string; style: string; company: string }
   rigorConditions?: IRigorConditions
   shareToken?: string
+  assessmentInviteId?: Types.ObjectId
+  assessmentRoundOrder?: number
+  metadata?: { companyTrackId?: string; roundIndex?: number }
   createdAt: Date
   completedAt: Date
 }
 
 const InterviewSessionSchema = new Schema<IInterviewSession>({
-  userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+  userId: { type: Schema.Types.ObjectId, ref: 'User', required: false },
   format: {
     type: String,
     enum: ['coding', 'system_design', 'project_deepdive', 'behavioural', 'gap', 'pm_case', 'design_critique', 'ops_case', 'sales_discovery'],
@@ -139,6 +143,7 @@ const InterviewSessionSchema = new Schema<IInterviewSession>({
     },
     progressionSignal: { type: String, default: '' },
     specializationImpact: { type: String, default: '' },
+    linkedInDraft: { type: String, default: '' },
     generatedAt: Date,
   },
   scoreUpdate: {
@@ -166,6 +171,12 @@ const InterviewSessionSchema = new Schema<IInterviewSession>({
     default: null,
   },
   shareToken: { type: String, sparse: true, index: true },
+  assessmentInviteId: { type: Schema.Types.ObjectId, ref: 'AssessmentInvite', index: true },
+  assessmentRoundOrder: { type: Number },
+  metadata: {
+    companyTrackId: { type: String, default: '' },
+    roundIndex: { type: Number },
+  },
   createdAt: { type: Date, default: Date.now },
   completedAt: Date,
 })

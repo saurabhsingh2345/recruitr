@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import {
   Search, Users, Bell, TrendingUp, Zap, Clock,
-  Building2, ArrowRight, ExternalLink, Star, ChevronRight, MessageSquare, MapPin,
+  Building2, ArrowRight, ExternalLink, Star, ChevronRight, MessageSquare, MapPin, ClipboardList,
 } from 'lucide-react'
 import { RecruiterNav } from '@/components/RecruiterNav'
 import { Button } from '@/components/ui/button'
@@ -278,6 +278,12 @@ export default function RecruiterDashboardPage() {
             )}
           </div>
           <div className="flex items-center gap-3">
+            <Link href="/recruiter/assessments/new">
+              <Button size="sm" variant="outline" className="text-xs h-8 px-4 gap-1.5 border-white/[0.1] text-[#AEB5E0] hover:text-white hover:border-white/[0.2]">
+                <ClipboardList className="w-3.5 h-3.5" />
+                New assessment
+              </Button>
+            </Link>
             <Link href="/recruiter">
               <Button size="sm" className="btn-supernova font-semibold text-xs h-8 px-4 gap-1.5">
                 <Search className="w-3.5 h-3.5" />
@@ -449,6 +455,33 @@ export default function RecruiterDashboardPage() {
                     </Link>
                   </div>
                 )}
+              </div>
+            </div>
+
+            {/* Assessments promo card */}
+            <div className="rounded-2xl border border-[#8B7CF8]/20 bg-[#8B7CF8]/[0.04] p-6 flex flex-col sm:flex-row sm:items-center gap-5">
+              <div className="w-10 h-10 rounded-xl bg-[#8B7CF8]/15 flex items-center justify-center shrink-0">
+                <ClipboardList className="w-5 h-5 text-[#8B7CF8]" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-semibold mb-1">No-account candidate assessments</div>
+                <p className="text-xs text-[#AEB5E0] leading-relaxed">
+                  Send multi-round technical assessments to candidates who don&apos;t have an Intervue account yet.
+                  Each candidate gets a unique link; you see scored verdicts.
+                </p>
+              </div>
+              <div className="flex gap-2.5 shrink-0">
+                <Link href="/recruiter/assessments">
+                  <Button size="sm" variant="outline" className="text-xs h-8 border-white/[0.1] text-[#AEB5E0] hover:text-white">
+                    View all
+                  </Button>
+                </Link>
+                <Link href="/recruiter/assessments/new">
+                  <Button size="sm" className="text-xs h-8 bg-[#8B7CF8] hover:bg-[#7a6de0] text-white font-semibold gap-1.5">
+                    <ClipboardList className="w-3 h-3" />
+                    Create assessment
+                  </Button>
+                </Link>
               </div>
             </div>
 

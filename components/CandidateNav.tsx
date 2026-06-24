@@ -8,7 +8,7 @@ import { useTheme } from 'next-themes'
 import {
   LayoutDashboard, Sparkles, Link2, Video,
   MessageSquare, FileText, Settings, LogOut,
-  Sun, Moon, ExternalLink,
+  Sun, Moon, ExternalLink, Building2,
 } from 'lucide-react'
 import { NotificationBell } from '@/components/NotificationBell'
 
@@ -19,6 +19,7 @@ const MAIN_NAV = [
 ]
 
 const TOOLS_NAV = [
+  { icon: Building2,       label: 'Companies',    href: '/companies' },
   { icon: Link2,           label: 'Connections',  href: '/connections' },
   { icon: MessageSquare,   label: 'Messages',     href: '/messages',       badge: true },
   { icon: FileText,        label: 'Resumes',      href: '/resumes' },

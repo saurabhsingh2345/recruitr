@@ -7,13 +7,14 @@ import { signOut, useSession } from 'next-auth/react'
 import { useTheme } from 'next-themes'
 import {
   Search, LayoutDashboard, Briefcase,
-  MessageSquare, Settings, LogOut, Sun, Moon, Building2,
+  MessageSquare, Settings, LogOut, Sun, Moon, Building2, ClipboardList,
 } from 'lucide-react'
 
 const MAIN_NAV = [
-  { icon: LayoutDashboard, label: 'Dashboard',   href: '/recruiter/dashboard', exact: false },
-  { icon: Briefcase,       label: 'Roles',        href: '/recruiter/roles',     exact: false },
-  { icon: MessageSquare,   label: 'Outreach',     href: '/messages',            exact: false, badge: true },
+  { icon: LayoutDashboard, label: 'Dashboard',   href: '/recruiter/dashboard',   exact: false },
+  { icon: Briefcase,       label: 'Roles',        href: '/recruiter/roles',       exact: false },
+  { icon: ClipboardList,   label: 'Assessments',  href: '/recruiter/assessments', exact: false },
+  { icon: MessageSquare,   label: 'Outreach',     href: '/messages',              exact: false, badge: true },
 ]
 
 const TOOLS_NAV = [

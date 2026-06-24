@@ -5,6 +5,7 @@ import { Profile } from '@/lib/models/Profile'
 import { InterviewSession } from '@/lib/models/InterviewSession'
 import { RoleSpec } from '@/lib/models/RoleSpec'
 import { Handshake } from '@/lib/models/Handshake'
+import { SavedResume } from '@/lib/models/SavedResume'
 
 export async function GET() {
   const session = await auth()
@@ -12,7 +13,9 @@ export async function GET() {
 
   await connectDB()
 
-  const [profile, sessions, activeHandshakes] = await Promise.all([
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+
+  const [profile, sessions, activeHandshakes, recentResume] = await Promise.all([
     Profile.findOne({ userId: session.user.id })
       .select('parsedSkills targetRole careerGoal')
       .lean() as Promise<{
@@ -33,6 +36,9 @@ export async function GET() {
     Handshake.find({ candidateId: session.user.id, status: 'surfaced_to_candidate' })
       .select('roleSpecId')
       .lean() as Promise<{ roleSpecId: unknown }[]>,
+    SavedResume.findOne({ userId: session.user.id, jobTitle: { $ne: '' }, createdAt: { $gte: sevenDaysAgo } })
+      .sort({ createdAt: -1 })
+      .lean() as Promise<{ jobTitle: string; matchScore?: number; topGaps?: string[] } | null>,
   ])
 
   if (!profile) {
@@ -127,11 +133,51 @@ export async function GET() {
     } as typeof proactiveInsight & { goalContext?: string }
   }
 
+  // JD match alert: if recent resume found, compute or use stored match score
+  let jdMatchAlert: { jobTitle: string; matchScore: number; topGap: string; sessionLink: string } | null = null
+  if (recentResume && profile) {
+    let matchScore = recentResume.matchScore
+    let topGaps = recentResume.topGaps || []
+
+    if (matchScore === undefined) {
+      // Compute match: compare resume skills vs profile parsedSkills
+      const resumeSkills = (profile.parsedSkills || []).map((s: { name: string }) => s.name.toLowerCase())
+      const jobTitle = recentResume.jobTitle.toLowerCase()
+      // Simple heuristic: skills with low proof score are gaps
+      const lowScoreSkills = (profile.parsedSkills || [])
+        .filter((s: { proofScore: number }) => s.proofScore < 65)
+        .sort((a: { proofScore: number }, b: { proofScore: number }) => a.proofScore - b.proofScore)
+        .slice(0, 3)
+        .map((s: { name: string }) => s.name)
+      topGaps = lowScoreSkills
+      const avgScore = resumeSkills.length
+        ? (profile.parsedSkills || []).reduce((sum: number, s: { proofScore: number }) => sum + s.proofScore, 0) / (profile.parsedSkills || []).length
+        : 50
+      matchScore = Math.min(95, Math.round(avgScore))
+
+      // Persist to avoid recomputing
+      try {
+        await SavedResume.findByIdAndUpdate((recentResume as unknown as { _id: string })._id, { matchScore, topGaps })
+      } catch {}
+    }
+
+    const topGap = topGaps?.[0] || null
+    const BASE = process.env.NEXTAUTH_URL || 'http://localhost:3000'
+
+    jdMatchAlert = {
+      jobTitle: recentResume.jobTitle,
+      matchScore,
+      topGap: topGap || 'key skills for the role',
+      sessionLink: `${BASE}/interview/new${topGap ? `?skill=${encodeURIComponent(topGap)}` : ''}`,
+    }
+  }
+
   return NextResponse.json({
     proactiveInsight,
     decayingSkills,
     recentProgress,
     pendingHandshakes: activeHandshakes.length,
     careerGoal,
+    jdMatchAlert,
   })
 }

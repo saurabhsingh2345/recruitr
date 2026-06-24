@@ -1,14 +1,15 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
-import { Code2, ChevronLeft, Loader2, ArrowRight } from 'lucide-react'
+import { Code2, ChevronLeft, Loader2, ArrowRight, Layers } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { getTrackById } from '@/lib/data/companyTracks'
 
 const FORMATS = [
   {
@@ -103,9 +104,27 @@ const COMMON_SKILLS = [
 
 export default function NewInterviewPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [selectedFormat, setSelectedFormat] = useState('')
   const [targetSkill, setTargetSkill] = useState('')
   const [isStarting, setIsStarting] = useState(false)
+  const [companyTrackId, setCompanyTrackId] = useState<string | null>(null)
+  const [roundIndex, setRoundIndex] = useState<number | null>(null)
+
+  useEffect(() => {
+    const format = searchParams.get('format')
+    const skill = searchParams.get('skill')
+    const trackId = searchParams.get('companyTrackId')
+    const rIdx = searchParams.get('roundIndex')
+
+    if (format) setSelectedFormat(format)
+    if (skill) setTargetSkill(skill)
+    if (trackId) setCompanyTrackId(trackId)
+    if (rIdx !== null) setRoundIndex(Number(rIdx))
+  }, [searchParams])
+
+  const track = companyTrackId ? getTrackById(companyTrackId) : null
+  const trackRound = track && roundIndex !== null ? track.rounds[roundIndex] : null
 
   async function handleStart() {
     if (!selectedFormat) {
@@ -119,13 +138,17 @@ export default function NewInterviewPage() {
 
     setIsStarting(true)
     try {
+      const body: Record<string, unknown> = {
+        format: selectedFormat,
+        targetSkill: targetSkill.trim(),
+      }
+      if (companyTrackId !== null) body.companyTrackId = companyTrackId
+      if (roundIndex !== null) body.roundIndex = roundIndex
+
       const res = await fetch('/api/interview/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          format: selectedFormat,
-          targetSkill: targetSkill.trim(),
-        }),
+        body: JSON.stringify(body),
       })
 
       if (res.ok) {
@@ -162,8 +185,23 @@ export default function NewInterviewPage() {
           animate={{ opacity: 1, y: 0 }}
           className="mb-8"
         >
-          <h1 className="text-2xl font-bold mb-2">Start an interview session</h1>
-          <p className="text-[#AEB5E0] text-sm">Choose a format and we&apos;ll generate questions from your actual profile.</p>
+          {track && trackRound ? (
+            <>
+              <div className="flex items-center gap-2 mb-3">
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#8B7CF8]/10 border border-[#8B7CF8]/20 text-[#8B7CF8] text-xs">
+                  <Layers className="w-3 h-3" />
+                  Round {trackRound.order} of {track.rounds.length} · {track.name} track
+                </div>
+              </div>
+              <h1 className="text-2xl font-bold mb-1">{trackRound.title}</h1>
+              <p className="text-[#AEB5E0] text-sm">{trackRound.focus}</p>
+            </>
+          ) : (
+            <>
+              <h1 className="text-2xl font-bold mb-2">Start an interview session</h1>
+              <p className="text-[#AEB5E0] text-sm">Choose a format and we&apos;ll generate questions from your actual profile.</p>
+            </>
+          )}
         </motion.div>
 
         {/* Format selection */}

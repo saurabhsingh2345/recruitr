@@ -4,6 +4,7 @@ import { connectDB } from '@/lib/mongodb'
 import { InterviewSession } from '@/lib/models/InterviewSession'
 import { Building2, ArrowRight, Zap, ChevronLeft } from 'lucide-react'
 import { CompaniesAuthCTA } from './CompaniesAuthCTA'
+import { COMPANY_TRACKS } from '@/lib/data/companyTracks'
 
 export const metadata: Metadata = {
   title: 'Company Interview Styles | Intervue',
@@ -115,7 +116,42 @@ export default async function CompaniesPage() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-14">
-          {display.map((c) => (
+          {/* Curated tracks first */}
+          {COMPANY_TRACKS.map((track) => {
+            const dbEntry = companies.find(c => c.name.toLowerCase() === track.name.toLowerCase())
+            return (
+              <Link
+                key={track.id}
+                href={`/companies/${track.id}`}
+                className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5 hover:border-[#2DE2C5]/30 hover:bg-white/[0.03] transition-all group block"
+              >
+                <div className="flex items-start gap-3 mb-3">
+                  <div className="w-9 h-9 rounded-lg bg-[#8B7CF8]/10 border border-[#8B7CF8]/15 flex items-center justify-center shrink-0">
+                    <span className="text-[#8B7CF8] font-bold text-xs">{track.logo}</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold text-sm truncate flex items-center gap-2">
+                      {track.name}
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#2DE2C5]/10 text-[#2DE2C5] border border-[#2DE2C5]/15 font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+                        {track.rounds.length} rounds
+                      </span>
+                    </div>
+                    <div className="text-[10px] text-white/25 mt-0.5">
+                      {dbEntry && dbEntry.sessionCount > 0
+                        ? `${dbEntry.sessionCount} session${dbEntry.sessionCount !== 1 ? 's' : ''}${dbEntry.avgScore ? ` · avg ${dbEntry.avgScore}/100` : ''}`
+                        : track.stage}
+                    </div>
+                  </div>
+                </div>
+                <p className="text-xs text-white/40 leading-relaxed line-clamp-2 mb-3">{track.interviewStyle}</p>
+                <div className="flex items-center gap-1 text-[11px] text-[#2DE2C5] font-semibold opacity-0 group-hover:opacity-100 transition-opacity">
+                  View track <ArrowRight className="w-3 h-3" />
+                </div>
+              </Link>
+            )
+          })}
+          {/* DB-only companies (no matching track) */}
+          {display.filter(c => !COMPANY_TRACKS.some(t => t.name.toLowerCase() === c.name.toLowerCase())).map((c) => (
             <div
               key={c.name}
               className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5 hover:border-white/[0.12] hover:bg-white/[0.03] transition-all"
