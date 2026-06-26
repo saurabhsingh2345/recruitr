@@ -46,6 +46,20 @@ export async function POST(
         `${m.role === 'ai' ? 'Interviewer' : 'Candidate'}: ${m.content}`)
       .join('\n\n')
 
+    const scoredSubmissions = (interviewSession.codeSubmissions || []) as Array<{ language: string; code: string; judge0Output: string; codeScore?: number }>
+    const submissionsWithScore = scoredSubmissions.filter(s => s.codeScore !== undefined && s.codeScore !== null)
+    const avgCodeScore = submissionsWithScore.length > 0
+      ? Math.round((submissionsWithScore.reduce((sum, s) => sum + (s.codeScore ?? 0), 0) / submissionsWithScore.length) * 10) / 10
+      : null
+
+    const codeSubmissionsSection = scoredSubmissions.length > 0
+      ? '\n\nCODE SUBMISSIONS (use these to evaluate code_quality — actual code written, not just what candidate said):\n' +
+        scoredSubmissions.map((s, i) =>
+          `Submission ${i + 1} (${s.language})${s.codeScore !== undefined ? ` — live correctness score: ${s.codeScore}/10` : ''}:\n\`\`\`${s.language}\n${s.code}\n\`\`\`\nOutput: ${s.judge0Output || '(no output)'}`
+        ).join('\n\n') +
+        (avgCodeScore !== null ? `\n\nAverage code correctness across all submissions: ${avgCodeScore}/10` : '')
+      : ''
+
     // Extract unique questions from the transcript (AI turns that end with '?')
     const questions = interviewSession.messages
       .filter((m: { role: string; content: string }) => m.role === 'ai' && m.content.includes('?'))
@@ -56,18 +70,22 @@ export async function POST(
       })
 
     const FORMAT_RUBRICS: Record<string, { axes: Record<string, string>; expertLabel: string }> = {
-      coding:        { axes: { technical_depth: 'technical_depth', problem_solving: 'problem_solving', communication: 'communication', code_quality: 'code_quality' }, expertLabel: 'expert engineer' },
+      coding:        { axes: { technical_depth: 'technical_depth', problem_solving: 'problem_solving', communication: 'communication', code_quality: 'code_quality', code_correctness: 'code_correctness' }, expertLabel: 'expert engineer' },
       system_design: { axes: { technical_depth: 'technical_depth', problem_solving: 'problem_solving', communication: 'communication', design_quality: 'design_quality' }, expertLabel: 'staff engineer' },
       project_deepdive: { axes: { technical_depth: 'technical_depth', problem_solving: 'problem_solving', communication: 'communication', code_quality: 'ownership_signal' }, expertLabel: 'senior engineer' },
       behavioural:   { axes: { technical_depth: 'situation_clarity', problem_solving: 'action_quality', communication: 'communication', code_quality: 'impact_articulation' }, expertLabel: 'senior engineer' },
-      gap:           { axes: { technical_depth: 'technical_depth', problem_solving: 'problem_solving', communication: 'communication', code_quality: 'concept_clarity' }, expertLabel: 'expert engineer' },
+      gap:           { axes: { technical_depth: 'technical_depth', problem_solving: 'problem_solving', communication: 'communication', code_quality: 'concept_clarity', code_correctness: 'code_correctness' }, expertLabel: 'expert engineer' },
       pm_case:       { axes: { technical_depth: 'problem_framing', problem_solving: 'prioritization_logic', communication: 'communication', code_quality: 'insight_quality' }, expertLabel: 'senior PM' },
       design_critique: { axes: { technical_depth: 'ux_reasoning', problem_solving: 'systems_thinking', communication: 'communication', code_quality: 'design_rationale' }, expertLabel: 'senior designer' },
       ops_case:      { axes: { technical_depth: 'process_design', problem_solving: 'resource_allocation', communication: 'communication', code_quality: 'risk_identification' }, expertLabel: 'senior ops lead' },
       sales_discovery: { axes: { technical_depth: 'discovery_quality', problem_solving: 'objection_handling', communication: 'communication', code_quality: 'value_articulation' }, expertLabel: 'senior AE' },
     }
     const rubric = FORMAT_RUBRICS[interviewSession.format] || FORMAT_RUBRICS.coding
-    const breakdownKeys = Object.entries(rubric.axes).map(([, v]) => `"${v}": <0-100>`).join(',\n    ')
+    const breakdownKeys = Object.entries(rubric.axes).map(([, v]) =>
+      v === 'code_correctness' && avgCodeScore !== null
+        ? `"${v}": ${Math.round(avgCodeScore * 10)} /* derived from live scores: ${avgCodeScore}/10 avg */`
+        : `"${v}": <0-100>`
+    ).join(',\n    ')
 
     const analysisPrompt = `Analyze this interview transcript and generate a structured assessment.
 
@@ -75,7 +93,7 @@ Interview format: ${interviewSession.format}
 Target skill: ${interviewSession.targetSkill}
 
 TRANSCRIPT:
-${transcript.slice(0, 3000)}
+${transcript.slice(0, 3000)}${codeSubmissionsSection}
 
 QUESTIONS ASKED (extract these for idealAnswers):
 ${questions.map((q: string, i: number) => `${i + 1}. ${q}`).join('\n')}
@@ -332,7 +350,7 @@ Return ONLY valid JSON (no markdown, no code fences):
     )
     if (crossedMilestone) {
       try {
-        const proofUrl = `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/proof/${session.user.id}/${encodeURIComponent(interviewSession.targetSkill)}`
+        const proofUrl = `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/proof/${userDoc?.username || session.user.id}/${encodeURIComponent(interviewSession.targetSkill)}`
         const { text: draftText } = await generateText({
           model: await getModel(),
           prompt: `Write a short LinkedIn post (3-4 sentences, first person, conversational tone, no hashtag spam, no emojis) celebrating that I just scored ${scoreUpdateData.after}/100 on a ${interviewSession.format.replace('_', ' ')} interview for ${interviewSession.targetSkill} — hitting the ${crossedMilestone}-point milestone — on Intervue. Mention the specific skill and score naturally. End with this proof link: ${proofUrl}. Sound genuine and specific, not generic or braggy. Output only the post text.`,

@@ -67,7 +67,7 @@ const PIPELINE_COLS = [
 function CandidateCard({ c, onContact }: { c: CandidateMatch; onContact: (c: CandidateMatch) => void }) {
   const lastActive = lastActiveLabel(c.user?.lastSessionDate ?? null)
   return (
-    <div className="p-4 rounded-xl border border-white/[0.06] bg-[#080A18] hover:border-white/[0.12] transition-all flex flex-col gap-3">
+    <div className="p-4 rounded-xl border border-white/[0.06] bg-[#080A18] hover:border-white/[0.12] hover:-translate-y-[1px] hover:shadow-lg hover:shadow-black/30 transition-all duration-200 flex flex-col gap-3">
       {/* Header */}
       <div className="flex items-start gap-2.5">
         <div className="relative shrink-0">
@@ -320,8 +320,10 @@ export default function RecruiterDashboardPage() {
                   initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: i * 0.06 }}
-                  className="p-5 rounded-xl border border-white/[0.06] bg-[#080A18]"
+                  className="rounded-xl border border-white/[0.06] bg-[#080A18] overflow-hidden relative"
                 >
+                  <div className="absolute top-0 left-0 right-0 h-[2px]" style={{ background: color }} />
+                  <div className="p-5">
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-xs text-[#AEB5E0]">{label}</span>
                     <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: color + '15' }}>
@@ -334,6 +336,7 @@ export default function RecruiterDashboardPage() {
                     <div className="text-2xl font-bold font-mono" style={{ color }}>{value}</div>
                   )}
                   <div className="text-[10px] text-[#888FC0] mt-1">{sub}</div>
+                  </div>
                 </motion.div>
               ))}
             </div>
@@ -365,7 +368,7 @@ export default function RecruiterDashboardPage() {
                             <span className="text-sm text-[#AEB5E0] group-hover:text-white transition-colors flex-1">{col.label}</span>
                             <div className="flex items-center gap-2">
                               {col.count > 0 && (
-                                <div className="h-1.5 rounded-full bg-white/[0.05] w-16 overflow-hidden">
+                                <div className="h-2 rounded-full bg-white/[0.05] w-20 overflow-hidden">
                                   <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: col.color }} />
                                 </div>
                               )}
@@ -503,7 +506,7 @@ export default function RecruiterDashboardPage() {
                   {activity.map((item) => (
                     <Link key={item._id} href={`/messages/${item._id}`}>
                       <div className="flex items-start gap-3 p-3 rounded-xl hover:bg-white/[0.02] transition-colors">
-                        <div className="w-7 h-7 rounded-full bg-[#2DE2C5]/10 flex items-center justify-center shrink-0 mt-0.5">
+                        <div className="w-7 h-7 rounded-full bg-gradient-to-b from-[#2DE2C5]/20 to-[#3FC5F0]/10 flex items-center justify-center shrink-0 mt-0.5">
                           <MessageSquare className="w-3.5 h-3.5 text-[#2DE2C5]" />
                         </div>
                         <div className="flex-1 min-w-0">

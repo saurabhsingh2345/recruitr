@@ -8,10 +8,11 @@ import { getModel, INTERVIEW_SYSTEM_PROMPT } from '@/lib/groq'
 import { fetchGitHubRepos, reposToSummary } from '@/lib/github'
 import { generateText } from 'ai'
 import { getCandidateMemory } from '@/lib/memory'
+import { getTrackById } from '@/lib/data/companyTracks'
 
 const FORMAT_PROMPTS: Record<string, string> = {
   coding:
-    "Start a live coding interview. Present one focused coding challenge (data structures, algorithms, or system-level) relevant to the candidate's background. State the problem clearly with examples.",
+    "Start a live coding interview. Present one focused coding challenge (data structures, algorithms, or system-level) relevant to the candidate's background. State the problem clearly with a function signature and 1-2 examples. Let the candidate know the editor is on the right — they should write their solution there and click Submit for your review. You will score each submission **Correctness: X/10**.",
   system_design:
     "Start a system design interview. Choose a real-world system relevant to their experience (e.g., design a URL shortener, rate limiter, or notification service) and ask them to walk through their approach.",
   project_deepdive:
@@ -67,6 +68,17 @@ export async function POST(req: NextRequest) {
         .map((s: { name: string; proofScore: number }) => `- ${s.name}: ${s.proofScore}/100`)
         .join('\n') || 'No skill scores yet.'
 
+    // Company track context injection
+    let trackAddition = ''
+    if (companyTrackId) {
+      const track = getTrackById(companyTrackId)
+      if (track) {
+        const roundIdx = roundIndex ?? 0
+        const trackRound = track.rounds[roundIdx]
+        trackAddition = `\n\n[COMPANY TRACK: ${track.name}]\nInterview style: ${track.interviewStyle}${trackRound ? `\nThis round focus: ${trackRound.focus}` : ''}`
+      }
+    }
+
     // Company mode: analyze JD if provided
     let companyModeData: { jdSnippet: string; style: string; company: string } | undefined
     let companyAddition = ''
@@ -91,7 +103,7 @@ ${repoSummary}
 
 Skill proof scores:
 ${skillContext}
-${memoryContext}${companyAddition}
+${memoryContext}${trackAddition}${companyAddition}
 Start the interview now with your opening question. Be specific to their actual projects/skills.`
 
     const { text: openingQuestion } = await generateText({
@@ -116,7 +128,11 @@ Start the interview now with your opening question. Be specific to their actual 
       ],
       githubContext: repoSummary.slice(0, 2000),
       memoryContext,
-      ...(companyModeData ? { companyMode: companyModeData } : {}),
+      ...(companyModeData
+        ? { companyMode: companyModeData }
+        : trackAddition
+        ? { companyMode: { jdSnippet: '', style: trackAddition.trim(), company: companyTrackId || '' } }
+        : {}),
       ...(rigorConditions ? { rigorConditions: { ...rigorConditions, capturedAt: new Date() } } : {}),
       ...(companyTrackId ? { metadata: { companyTrackId, roundIndex: roundIndex ?? 0 } } : {}),
     })

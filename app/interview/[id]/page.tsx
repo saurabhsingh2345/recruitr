@@ -163,7 +163,11 @@ export default function InterviewSessionPage() {
     setCode(DEFAULT_CODE[lang] || '')
   }, [])
 
-  async function sendMessage(messageContent: string, isHint = false): Promise<string> {
+    async function sendMessage(
+    messageContent: string,
+    isHint = false,
+    codeContext?: { code: string; codeOutput: string; language: string }
+  ): Promise<string> {
     if (!messageContent.trim() && !isHint) return ''
 
     const userMsg: Message = { role: 'user', content: messageContent }
@@ -178,7 +182,7 @@ export default function InterviewSessionPage() {
       const res = await fetch(`/api/interview/${sessionId}/respond`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: messageContent, isHint }),
+        body: JSON.stringify({ message: messageContent, isHint, ...codeContext }),
       })
 
       if (!res.ok) throw new Error('Response failed')
@@ -220,9 +224,10 @@ export default function InterviewSessionPage() {
     await sendMessage('[HINT REQUEST]', true)
   }
 
-  async function runCode() {
+  async function runCode(): Promise<string> {
     setIsRunning(true)
     setShowOutput(true)
+    let output = ''
     try {
       const res = await fetch('/api/code/execute', {
         method: 'POST',
@@ -230,17 +235,32 @@ export default function InterviewSessionPage() {
         body: JSON.stringify({ code, language }),
       })
       const data = await res.json()
-      const output =
+      output =
         data.stdout ||
         data.compile_output ||
         data.stderr ||
         `Status: ${data.status?.description || 'Unknown'}`
       setCodeOutput(output)
     } catch {
-      setCodeOutput('Error: Failed to execute code')
+      output = 'Error: Failed to execute code'
+      setCodeOutput(output)
     } finally {
       setIsRunning(false)
     }
+    return output
+  }
+
+  async function submitCode() {
+    if (isLoading || isRunning) return
+    let output = codeOutput
+    if (!output) {
+      output = await runCode()
+    }
+    await sendMessage(
+      `Here is my ${language} solution — please review it.`,
+      false,
+      { code, codeOutput: output, language }
+    )
   }
 
   async function completeSession() {
@@ -770,7 +790,7 @@ export default function InterviewSessionPage() {
               <Button
                 size="sm"
                 onClick={runCode}
-                disabled={isRunning}
+                disabled={isRunning || isLoading}
                 className="bg-[#2DE2C5] text-[#05060F] hover:bg-[#1fb89e] text-xs h-7"
               >
                 {isRunning ? (
@@ -779,6 +799,19 @@ export default function InterviewSessionPage() {
                   <Play className="w-3.5 h-3.5 mr-1" />
                 )}
                 Run
+              </Button>
+              <Button
+                size="sm"
+                onClick={submitCode}
+                disabled={isRunning || isLoading || !code.trim()}
+                className="bg-[#8B7CF8] text-white hover:bg-[#7c6ef0] text-xs h-7"
+              >
+                {isLoading ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
+                ) : (
+                  <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
+                )}
+                Submit
               </Button>
             </div>
           </div>

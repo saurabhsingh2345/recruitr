@@ -1,6 +1,6 @@
 # Intervue — What We Have
 
-*Updated 2026-06-25. Live, tested, TypeScript clean.*
+*Updated 2026-06-25 (session 3). Live, tested, TypeScript clean.*
 
 ---
 
@@ -29,8 +29,8 @@ Landing (/) → Onboarding (GitHub/X OAuth + resume) → Dashboard
 | **Auth** | `/onboarding` | GitHub OAuth or X/Twitter OAuth → resume (optional) → role. Accepts `?assessmentToken=` to claim a guest assessment after signup |
 | **Hub** | `/dashboard` | Skill bars, session history, verified card progress, rank vs cohort, company tracks promo card |
 | **Format pick** | `/interview/new` | 9 formats in 2 groups, skill input, optional JD paste. Reads `?companyTrackId=&roundIndex=&format=&skill=` — pre-fills everything for company track sessions |
-| **Session** | `/interview/[id]` | AI chat + Monaco editor (engineering) or chat-only (non-engineering). Voice, hints, code execution, cross-session memory, company-mode JD injection |
-| **Report** | `/interview/report/[id]` | Score, 4-axis breakdown, ideal answers, gaps with next steps, study recs, progression velocity, specialization impact, LinkedIn share card (milestone reached), "Continue track →" card (company track sessions) |
+| **Session** | `/interview/[id]` | AI chat + Monaco editor (engineering) or chat-only (non-engineering). Voice, hints, code execution (Run), **code submission to LLM (Submit)**, cross-session memory, company-mode JD injection |
+| **Report** | `/interview/report/[id]` | Score, breakdown (5 axes for coding — includes `code_correctness`), code submissions panel (per-submission `X/10` scores + avg), ideal answers, gaps with next steps, study recs, progression velocity, specialization impact, LinkedIn share card (milestone reached), "Continue track →" card (company track sessions) |
 | **Agent** | `/agent` | Atlas — career goal card, proactive skill push, JD match alert (from recent Resume Studio), market feed, learning plan, offer negotiation coach. Auto-switches to negotiate tab when `?tab=negotiate&offerId=` present |
 | **Companies** | `/companies` | 20 company tracks grid. Each links to detail page |
 | **Company track** | `/companies/[id]` | Round list, focus areas, "Start Round 1 →" → pre-fills interview/new |
@@ -85,11 +85,11 @@ Recruiter creates assessment → candidate gets email with unique link
 **Engineering**
 | Format | Editor | Rubric axes |
 |---|---|---|
-| Live Coding | Monaco + Judge0 | technical_depth, problem_solving, communication, code_quality |
+| Live Coding | Monaco + Judge0 | technical_depth, problem_solving, communication, code_quality, **code_correctness** |
 | System Design | Monaco | technical_depth, problem_solving, communication, design_quality |
 | Project Deep-dive | Monaco | technical_depth, problem_solving, communication, ownership_signal |
 | Behavioural | — | situation_clarity, action_quality, communication, impact_articulation |
-| Gap Session | — | technical_depth, problem_solving, communication, concept_clarity |
+| Gap Session | — | technical_depth, problem_solving, communication, concept_clarity, **code_correctness** |
 
 **Non-engineering**
 | Format | Editor | Rubric axes |
@@ -106,7 +106,9 @@ Recruiter creates assessment → candidate gets email with unique link
 ### Candidate
 
 - **Identity graph** — GitHub, resume, sessions, DEV.to, Stack Overflow, HN, LinkedIn (scraper), GitLab, X/Twitter all merge additively into `parsedSkills[]`
-- **AI sessions** — streaming, voice, hints, Judge0 code execution, cross-session weakness memory, company-mode JD injection, rigor conditions
+- **AI sessions** — streaming, voice, hints, Judge0 code execution (**Run** button), **code submission to LLM** (**Submit** button — auto-runs then sends code + output to AI for evaluation), cross-session weakness memory, company-mode JD injection, rigor conditions
+- **Coding challenge protocol** — for `coding` and `gap` formats, LLM proactively asks a fresh challenge after each submission (progressively harder), requires function signature + examples + constraints in each problem
+- **Per-submission correctness score** — LLM emits `**Correctness: X/10**` after evaluating each submission; parsed server-side and stored as `codeSubmissions[].codeScore`; displayed on report page with per-submission score + session average
 - **proofScore** — per-skill 0–100, score history, confidence band (±σ), cohort percentile, decay signal, progression velocity label
 - **Insight report** — strengths, gaps with actionable next steps, ideal answers (per question), study recommendations, AI verdict sentence, next session recommendation, specialization impact blurb, LinkedIn draft (milestone sessions)
 - **LinkedIn share card** — auto-generated when score crosses 60/70/80/90 milestone on any skill. Editable textarea, copy + LinkedIn share button. Shows on report page
@@ -122,7 +124,7 @@ Recruiter creates assessment → candidate gets email with unique link
 - **Certificates** — auto at 50/70/85 proofScore milestones. OG image per cert
 - **Session receipt** — OG image per session (`/api/receipt/[sessionId]`)
 - **Resume Studio** — AI-generated resume from verified data, JD match score (stored on SavedResume, lazy-computed), PDF export, top gaps saved
-- **Notifications** — bell icon, 11 types, 90d TTL, inbox
+- **Notifications** — bell icon, 11 types, 90d TTL, inbox. **Email notification preferences** (interview reminders, recruiter views, score milestones) now saved to DB and toggled live in Settings → Notifications
 - **Weekly brief** — Monday cron, personalized Atlas summary per candidate, stored in `/briefs`
 - **Specialization inference** — Sunday cron, AI infers specializations from session + repo patterns
 - **Peer interviews** — candidate vs candidate + AI moderator
@@ -156,9 +158,9 @@ Recruiter creates assessment → candidate gets email with unique link
 
 | Model | Key fields |
 |---|---|
-| **User** | `authProvider` (github/credentials/twitter), `role`, `discoverability`, `preferences` (comp/location/stage/dealbreakers/noticePeriod), `streak` (currentStreak, longestStreak, freezeTokens), `subscriptionTier`, `referralCode`, `vouchedCount`, `emailBriefEnabled` |
+| **User** | `authProvider` (github/credentials/twitter), `role`, `discoverability`, `preferences` (comp/location/stage/dealbreakers/noticePeriod), `streak` (currentStreak, longestStreak, freezeTokens), `subscriptionTier`, `referralCode`, `vouchedCount`, `emailBriefEnabled`, **`notifReminders`**, **`notifRecruiterViews`**, **`notifScoreMilestones`** |
 | **Profile** | `parsedSkills[]` (name, proofScore, scoreHistory[], evidence[], confidence band), `careerGoal` (targetRole, targetLevel, targetStage, targetLocation, targetSalaryLPA), `cohortPercentile`, `specializations[]`, `portfolioTheme` (4 options), `experiences[]`, `educations[]`, `connections[]` (7 sources) |
-| **InterviewSession** | `format` (9 values), `targetSkill`, `status`, `messages[]`, `insightReport` (strengths, gaps, gapsWithNextSteps, idealAnswers, studyRecs, aiVerdict, weaknessSignals, nextSessionRec, progressionSignal, specializationImpact, **linkedInDraft**), `scoreUpdate`, `companyMode`, `rigorConditions`, `assessmentInviteId`, `assessmentRoundOrder`, `metadata` (companyTrackId, roundIndex) |
+| **InterviewSession** | `format` (9 values), `targetSkill`, `status`, `messages[]`, **`codeSubmissions[]`** (language, code, judge0Output, **codeScore 0–10**, timestamp), `insightReport` (strengths, gaps, gapsWithNextSteps, idealAnswers, studyRecs, aiVerdict, weaknessSignals, nextSessionRec, progressionSignal, specializationImpact, **linkedInDraft**), `scoreUpdate`, `companyMode`, `rigorConditions`, `assessmentInviteId`, `assessmentRoundOrder`, `metadata` (companyTrackId, roundIndex) |
 | **Assessment** | `recruiterId`, `title`, `role`, `rounds[]` (order, format, title, durationMinutes, instructions), `deadline`, `status` (draft/active/closed) |
 | **AssessmentInvite** | `assessmentId`, `token` (32-char hex, unique), `candidateName`, `candidateEmail`, `userId` (optional, set on claim), `rounds[]` (roundOrder, sessionId, status, score, breakdown), `compositeScore`, `verdict` (strong_hire/hire/maybe/no_hire), `verdictReason`, `status` |
 | **Application** | `status` (6 stages), `outcome` (result, hiredCompany, hiredRole, hiredSalaryLPA, hiredAt) |
@@ -197,7 +199,7 @@ Recruiter creates assessment → candidate gets email with unique link
 
 | File | What it does |
 |---|---|
-| `lib/groq.ts` | `getModel()` → Groq `llama-3.3-70b-versatile` (Ollama removed). `INTERVIEW_SYSTEM_PROMPT`, `PROFILE_GENERATION_PROMPT` |
+| `lib/groq.ts` | `getModel()` → Groq `llama-3.3-70b-versatile` (Ollama removed). `INTERVIEW_SYSTEM_PROMPT`, `PROFILE_GENERATION_PROMPT`. Coding protocol injected at respond time (not in base prompt) |
 | `lib/scoring.ts` | `calculateProofScore`, `calculateCohortPercentile`, `getScoreLabel`, `getConfidenceBand`, `getDecaySignal`, `getScoreColor` |
 | `lib/assessment.ts` | `computeVerdict()`, `computeCompositeScore()`, verdict labels + colors |
 | `lib/interview-insights.ts` | `computeProgressionVelocity`, `suggestNextSession`, `computeSpecializationImpact`, `buildGapsWithNextSteps` |
@@ -315,8 +317,6 @@ Currently: 20 pass (stateless), 24 skip (need credentials), 0 fail.
 
 | Gap | Detail |
 |---|---|
-| Company track focus areas not injected into AI prompt | `focusAreas` are in the track data but not passed through to the AI system prompt during sessions — only `companyMode.style` is. Would need to pass focusAreas through the start route |
-| `/interview/new` format grouping | Behavioural + Gap apply to all roles but currently sit in the Engineering group |
 | Peer matchmaking by cohort | Random pairing today; cohort sort is ~30 min |
 | Typesense activation | Scaffolded; needs a running instance + index sync cron |
 | LiveKit video | Token API ready; no UI |

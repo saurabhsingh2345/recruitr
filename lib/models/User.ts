@@ -55,6 +55,10 @@ export interface IUser extends Document {
   // Atlas weekly brief
   emailBriefEnabled: boolean
   lastBriefSentAt: Date | null
+  // Email notification preferences
+  notifReminders: boolean
+  notifRecruiterViews: boolean
+  notifScoreMilestones: boolean
   subscriptionTier: 'free' | 'pro'
   stripeCustomerId: string
   stripeSubscriptionId: string
@@ -114,6 +118,9 @@ const UserSchema = new Schema<IUser>({
   isVouched: { type: Boolean, default: false },
   emailBriefEnabled: { type: Boolean, default: true },
   lastBriefSentAt: { type: Date, default: null },
+  notifReminders: { type: Boolean, default: true },
+  notifRecruiterViews: { type: Boolean, default: true },
+  notifScoreMilestones: { type: Boolean, default: true },
   subscriptionTier: { type: String, enum: ['free', 'pro'], default: 'free' },
   stripeCustomerId: { type: String, default: '' },
   stripeSubscriptionId: { type: String, default: '' },

@@ -11,6 +11,7 @@ export interface ICodeSubmission {
   language: string
   code: string
   judge0Output: string
+  codeScore?: number
   timestamp: Date
 }
 
@@ -109,6 +110,7 @@ const InterviewSessionSchema = new Schema<IInterviewSession>({
       language: String,
       code: String,
       judge0Output: String,
+      codeScore: { type: Number, default: null },
       timestamp: { type: Date, default: Date.now },
     },
   ],

@@ -408,6 +408,9 @@ export default function SettingsPage() {
     showSkills: true, showExperience: true, showProjects: true, showEducation: true,
   })
   const [emailBriefEnabled, setEmailBriefEnabled] = useState(true)
+  const [notifReminders, setNotifReminders] = useState(true)
+  const [notifRecruiterViews, setNotifRecruiterViews] = useState(true)
+  const [notifScoreMilestones, setNotifScoreMilestones] = useState(true)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [generatingProfile, setGeneratingProfile] = useState(false)
@@ -458,6 +461,9 @@ export default function SettingsPage() {
             onboardingComplete: profile?.onboardingComplete === true,
           })
           if (typeof user?.emailBriefEnabled === 'boolean') setEmailBriefEnabled(user.emailBriefEnabled)
+          if (typeof user?.notifReminders === 'boolean') setNotifReminders(user.notifReminders)
+          if (typeof user?.notifRecruiterViews === 'boolean') setNotifRecruiterViews(user.notifRecruiterViews)
+          if (typeof user?.notifScoreMilestones === 'boolean') setNotifScoreMilestones(user.notifScoreMilestones)
           if (profile?.portfolioProjects?.length) setPortfolioProjects(profile.portfolioProjects)
           if (profile?.portfolioTheme) setPortfolioTheme(profile.portfolioTheme)
           if (profile?.portfolioCustomization) setCustomization(c => ({ ...c, ...profile.portfolioCustomization }))
@@ -1335,18 +1341,31 @@ jobs:
                 {activeTab === 'notifications' && (
                   <Section title="Email notifications" desc="Choose what Intervue emails you about.">
                     <div className="space-y-2">
-                      {/* Static toggles — DB fields not yet wired; shown as always-on for clarity */}
                       {[
-                        { key: 'reminders', label: 'Interview reminders',   desc: "Reminder when you haven't practised in 7 days" },
-                        { key: 'views',     label: 'Recruiter views',       desc: 'When a recruiter views your profile' },
-                        { key: 'scores',    label: 'Score milestones',      desc: 'When your proof scores hit new highs' },
+                        { key: 'reminders',      label: 'Interview reminders', desc: "Reminder when you haven't practised in 7 days", value: notifReminders,      setter: setNotifReminders,      field: 'notifReminders' },
+                        { key: 'recruiterViews', label: 'Recruiter views',     desc: 'When a recruiter views your profile',           value: notifRecruiterViews, setter: setNotifRecruiterViews, field: 'notifRecruiterViews' },
+                        { key: 'scores',         label: 'Score milestones',    desc: 'When your proof scores hit new highs',           value: notifScoreMilestones, setter: setNotifScoreMilestones, field: 'notifScoreMilestones' },
                       ].map(item => (
                         <div key={item.key} className="flex items-center justify-between px-4 py-3.5 rounded-xl bg-foreground/[0.03] border border-foreground/[0.05]">
                           <div>
                             <div className="text-sm font-medium">{item.label}</div>
                             <div className="text-xs text-foreground/40 mt-0.5">{item.desc}</div>
                           </div>
-                          <Toggle on={true} onToggle={() => {}} />
+                          <Toggle on={item.value} onToggle={async () => {
+                            const next = !item.value
+                            item.setter(next)
+                            try {
+                              await fetch('/api/me', {
+                                method: 'PATCH',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ [item.field]: next }),
+                              })
+                              toast.success(next ? `${item.label} enabled` : `${item.label} disabled`)
+                            } catch {
+                              item.setter(!next)
+                              toast.error('Failed to update preference')
+                            }
+                          }} />
                         </div>
                       ))}
 

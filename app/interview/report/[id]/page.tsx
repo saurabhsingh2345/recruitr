@@ -69,6 +69,7 @@ interface Report {
   metadata?: { companyTrackId?: string; roundIndex?: number } | null
   messages?: Message[]
   cohortPercentile?: number
+  codeSubmissions?: Array<{ language: string; code: string; judge0Output: string; codeScore: number | null; timestamp: string }>
 }
 
 const FORMAT_LABELS: Record<string, string> = {
@@ -77,6 +78,10 @@ const FORMAT_LABELS: Record<string, string> = {
   project_deepdive: 'Project Deep-dive',
   behavioural: 'Behavioural',
   gap: 'Gap Analysis',
+  pm_case: 'PM Case Study',
+  design_critique: 'Design Critique',
+  ops_case: 'Ops / Program Mgmt',
+  sales_discovery: 'Sales Discovery',
 }
 
 function ScoreRing({ score, size = 96 }: { score: number; size?: number }) {
@@ -379,6 +384,11 @@ export default function InterviewReportPage() {
   const scoreColor = getScoreColor(overall)
   const breakdown = Object.entries(report.scores?.breakdown || {})
   const messages = report.messages || []
+  const codeSubmissions = report.codeSubmissions || []
+  const scoredSubmissions = codeSubmissions.filter(s => s.codeScore !== null)
+  const avgCodeScore = scoredSubmissions.length > 0
+    ? Math.round((scoredSubmissions.reduce((sum, s) => sum + (s.codeScore ?? 0), 0) / scoredSubmissions.length) * 10) / 10
+    : null
   const idealAnswers = report.insightReport?.idealAnswers || []
   const isFirstSessionBelow60 = report.scoreUpdate?.isFirstScore && report.scoreUpdate?.after < 60
   const gapsWithSteps = report.insightReport?.gapsWithNextSteps || []
@@ -564,7 +574,49 @@ export default function InterviewReportPage() {
                 </motion.div>
               )}
 
-              {/* 5. Strengths */}
+              {/* 5. Code Submissions */}
+              {codeSubmissions.length > 0 && (
+                <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.19 }}
+                  className="node-panel p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <Code2 className="w-4 h-4 text-[#8B7CF8]" />
+                      <h2 className="font-semibold">Code Submissions</h2>
+                    </div>
+                    {avgCodeScore !== null && (
+                      <span className="text-xs font-mono px-2 py-1 rounded-md bg-[#8B7CF8]/10 text-[#8B7CF8] border border-[#8B7CF8]/20">
+                        Avg correctness: {avgCodeScore}/10
+                      </span>
+                    )}
+                  </div>
+                  <div className="space-y-4">
+                    {codeSubmissions.map((sub, i) => (
+                      <div key={i} className="rounded-xl border border-foreground/[0.06] overflow-hidden">
+                        <div className="flex items-center justify-between px-4 py-2 bg-foreground/[0.03] border-b border-foreground/[0.06]">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-mono text-foreground/40">#{i + 1}</span>
+                            <span className="text-xs font-mono text-foreground/60 capitalize">{sub.language}</span>
+                          </div>
+                          {sub.codeScore !== null && (
+                            <span className="text-xs font-mono" style={{ color: getScoreColor(sub.codeScore * 10) }}>
+                              Correctness: {sub.codeScore}/10
+                            </span>
+                          )}
+                        </div>
+                        <pre className="text-xs font-mono text-foreground/70 p-4 overflow-x-auto bg-[#05060F] leading-relaxed max-h-48 overflow-y-auto">{sub.code}</pre>
+                        {sub.judge0Output && (
+                          <div className="px-4 py-2 border-t border-foreground/[0.06] bg-foreground/[0.02]">
+                            <span className="text-[10px] text-foreground/30 uppercase tracking-widest mr-2">Output</span>
+                            <span className="text-xs font-mono text-foreground/50">{sub.judge0Output.slice(0, 200)}</span>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+
+              {/* 6. Strengths */}
               {report.insightReport?.strengths?.length > 0 && (
                 <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
                   className="node-panel p-6">

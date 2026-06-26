@@ -56,12 +56,13 @@ function NavItem({
   return (
     <Link
       href={href}
-      className={`group flex items-center gap-2.5 px-3 py-2 rounded-md text-[13px] font-medium transition-colors duration-100 ${
+      className={`group relative flex items-center gap-2.5 px-3 py-2 rounded-md text-[13px] font-medium transition-all duration-150 ${
         active
-          ? 'bg-foreground/[0.07] text-foreground'
+          ? 'bg-foreground/[0.09] text-foreground'
           : 'text-foreground/40 hover:text-foreground/75 hover:bg-foreground/[0.04]'
       }`}
     >
+      {active && <span className="absolute left-0 top-1.5 bottom-1.5 w-[2.5px] rounded-r-full bg-[#2DE2C5]" />}
       <Icon
         className={`w-4 h-4 shrink-0 transition-colors ${
           active ? 'text-[#2DE2C5]' : 'text-foreground/35 group-hover:text-foreground/60'
@@ -126,7 +127,7 @@ export function CandidateNav({ username, unread = 0, footer }: CandidateNavProps
             // eslint-disable-next-line @next/next/no-img-element
             <img src={avatarUrl} alt={displayName} className="w-7 h-7 rounded-full shrink-0 ring-1 ring-foreground/10" />
           ) : (
-            <div className="w-7 h-7 rounded-full bg-[#2DE2C5]/20 flex items-center justify-center shrink-0 text-[11px] font-bold text-[#2DE2C5]">
+            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#2DE2C5]/25 to-[#8B7CF8]/20 border border-[#2DE2C5]/20 flex items-center justify-center shrink-0 text-[11px] font-bold text-[#2DE2C5]">
               {initial}
             </div>
           )}
@@ -155,13 +156,13 @@ export function CandidateNav({ username, unread = 0, footer }: CandidateNavProps
           <NavItem key={href} icon={icon} label={label} href={href} exact={exact} />
         ))}
 
-        <Divider />
+        <SectionLabel>Tools</SectionLabel>
 
         {TOOLS_NAV.map(({ icon, label, href, badge }) => (
           <NavItem key={href} icon={icon} label={label} href={href} badge={badge} unread={badge ? unread : 0} />
         ))}
 
-        <Divider />
+        <SectionLabel>Account</SectionLabel>
 
         {ACCOUNT_NAV.map(({ icon, label, href }) => (
           <NavItem key={href} icon={icon} label={label} href={href} />

@@ -97,7 +97,7 @@ function SkillLegendRow({ name, score, evidence, scoreHistory, lastUpdated }: {
       <span className="node-dot w-2 h-2 shrink-0 rounded-full" style={{ background: color, boxShadow: `0 0 6px 1px ${color}80` }} />
       <span className="text-xs text-foreground/80 w-24 truncate">{name}</span>
       <div className="flex-1 h-1.5 bg-foreground/[0.07] rounded-full overflow-hidden">
-        <div className="h-full rounded-full transition-all" style={{ width: `${score}%`, backgroundColor: color }} />
+        <div className="h-full rounded-full transition-all" style={{ width: `${score}%`, background: `linear-gradient(90deg, ${color}60, ${color})` }} />
       </div>
       {sparkData ? (
         <div className="w-12 h-5 shrink-0">
@@ -438,7 +438,7 @@ export default function DashboardPage() {
                         <img
                           src={data.user.avatarUrl}
                           alt={data.user.name}
-                          className="w-14 h-14 rounded-full border-2 border-border"
+                          className={`w-14 h-14 rounded-full border-2 ${openToWork ? 'border-[#2DE2C5]/40' : 'border-border'}`}
                         />
                       ) : (
                         <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[#2DE2C5] to-[#8B7CF8] flex items-center justify-center text-[#05060F] font-bold text-xl">
@@ -688,7 +688,7 @@ export default function DashboardPage() {
                       key={type.format}
                       onClick={() => startInterview(type.format, skills[0]?.name || 'General')}
                       disabled={startingInterview}
-                      className="group p-3.5 rounded-xl border border-border bg-card hover:bg-foreground/[0.03] text-left transition-all disabled:opacity-40 disabled:cursor-not-allowed relative overflow-hidden"
+                      className="group p-3.5 rounded-xl border border-border bg-card hover:bg-foreground/[0.03] hover:shadow-md hover:shadow-black/20 hover:border-foreground/[0.15] active:scale-[0.98] text-left transition-all disabled:opacity-40 disabled:cursor-not-allowed relative overflow-hidden"
                       style={{ borderLeftColor: type.color, borderLeftWidth: '3px' }}
                     >
                       <div className="text-base mb-2">{type.icon}</div>

@@ -12,6 +12,10 @@ const FORMAT_LABELS: Record<string, string> = {
   project_deepdive: 'Project Deep-dive',
   behavioural: 'Behavioural',
   gap: 'Gap Session',
+  pm_case: 'PM Case Study',
+  design_critique: 'Design Critique',
+  ops_case: 'Ops / Program Mgmt',
+  sales_discovery: 'Sales Discovery',
 }
 
 const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']

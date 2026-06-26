@@ -46,12 +46,13 @@ function NavItem({
   return (
     <Link
       href={href}
-      className={`group flex items-center gap-2.5 px-3 py-2 rounded-md text-[13px] font-medium transition-colors duration-100 ${
+      className={`group relative flex items-center gap-2.5 px-3 py-2 rounded-md text-[13px] font-medium transition-all duration-150 ${
         active
-          ? 'bg-foreground/[0.07] text-foreground'
+          ? 'bg-foreground/[0.09] text-foreground'
           : 'text-foreground/40 hover:text-foreground/75 hover:bg-foreground/[0.04]'
       }`}
     >
+      {active && <span className="absolute left-0 top-1.5 bottom-1.5 w-[2.5px] rounded-r-full bg-[#2DE2C5]" />}
       <Icon
         className={`w-4 h-4 shrink-0 transition-colors ${
           active ? 'text-[#2DE2C5]' : 'text-foreground/35 group-hover:text-foreground/60'
@@ -69,6 +70,16 @@ function NavItem({
 
 function Divider() {
   return <div className="my-1 border-t border-foreground/[0.05]" />
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="px-3 pt-3 pb-1">
+      <span className="text-[10px] font-semibold tracking-[0.08em] uppercase text-foreground/25">
+        {children}
+      </span>
+    </div>
+  )
 }
 
 export function RecruiterNav({ unread = 0 }: { unread?: number }) {
@@ -98,7 +109,7 @@ export function RecruiterNav({ unread = 0 }: { unread?: number }) {
       {/* User context */}
       <div className="px-3 py-3 border-b border-sidebar-border/60">
         <div className="flex items-center gap-2.5 px-1">
-          <div className="w-7 h-7 rounded-md bg-[#8B7CF8]/20 flex items-center justify-center shrink-0 text-[11px] font-bold text-[#8B7CF8]">
+          <div className="w-7 h-7 rounded-md bg-gradient-to-br from-[#8B7CF8]/25 to-[#2DE2C5]/15 border border-[#8B7CF8]/20 flex items-center justify-center shrink-0 text-[11px] font-bold text-[#8B7CF8]">
             {initial}
           </div>
           <div className="flex-1 min-w-0">
@@ -117,13 +128,13 @@ export function RecruiterNav({ unread = 0 }: { unread?: number }) {
           <NavItem key={href} icon={icon} label={label} href={href} exact={exact} badge={badge} unread={badge ? unread : 0} />
         ))}
 
-        <Divider />
+        <SectionLabel>Tools</SectionLabel>
 
         {TOOLS_NAV.map(({ icon, label, href, exact }) => (
           <NavItem key={href} icon={icon} label={label} href={href} exact={exact} />
         ))}
 
-        <Divider />
+        <SectionLabel>Account</SectionLabel>
 
         {ACCOUNT_NAV.map(({ icon, label, href }) => (
           <NavItem key={href} icon={icon} label={label} href={href} />
