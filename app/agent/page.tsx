@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback, useRef, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -145,7 +145,7 @@ const RIGHT_TABS: { id: RightTab; label: string }[] = [
 
 /* ── Main Page ───────────────────────────────────────────────── */
 
-export default function AgentPage() {
+function AgentPageInner() {
   const searchParams = useSearchParams()
   const [handshakes, setHandshakes] = useState<Handshake[]>([])
   const [atlasCtx, setAtlasCtx] = useState<AtlasContext | null>(null)
@@ -971,5 +971,13 @@ export default function AgentPage() {
         )}
       </AnimatePresence>
     </div>
+  )
+}
+
+export default function AgentPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#05060F]" />}>
+      <AgentPageInner />
+    </Suspense>
   )
 }

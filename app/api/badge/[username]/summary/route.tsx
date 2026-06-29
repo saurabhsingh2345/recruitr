@@ -5,7 +5,8 @@ import { Profile } from '@/lib/models/Profile'
 import { User } from '@/lib/models/User'
 import { getScoreColor } from '@/lib/scoring'
 
-export const runtime = 'edge'
+// Node runtime: this route uses Mongoose (connectDB), which is not Edge-compatible.
+export const runtime = 'nodejs'
 
 export async function GET(
   _req: NextRequest,

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { Code2, ChevronLeft, Loader2, ArrowRight, Layers } from 'lucide-react'
@@ -102,7 +102,7 @@ const COMMON_SKILLS = [
   'Data Structures', 'Algorithms',
 ]
 
-export default function NewInterviewPage() {
+function NewInterviewInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [selectedFormat, setSelectedFormat] = useState('')
@@ -302,5 +302,13 @@ export default function NewInterviewPage() {
         </Button>
       </div>
     </div>
+  )
+}
+
+export default function NewInterviewPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#05060F] flex items-center justify-center"><Loader2 className="w-6 h-6 text-[#2DE2C5] animate-spin" /></div>}>
+      <NewInterviewInner />
+    </Suspense>
   )
 }
