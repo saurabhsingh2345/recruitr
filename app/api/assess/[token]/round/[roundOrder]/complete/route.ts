@@ -66,6 +66,7 @@ export async function PATCH(
       format: interviewSession.format,
       role: assessment?.role || 'the role',
       candidateTurns,
+      codeSubmissions: interviewSession.codeSubmissions || [],
     })
 
     const gaps = analysis.gaps || []

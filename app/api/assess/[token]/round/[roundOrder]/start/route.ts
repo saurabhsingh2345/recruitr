@@ -5,6 +5,7 @@ import { Assessment } from '@/lib/models/Assessment'
 import { InterviewSession } from '@/lib/models/InterviewSession'
 import { getModel, INTERVIEW_SYSTEM_PROMPT } from '@/lib/groq'
 import { generateText } from 'ai'
+import { buildAssessDirective } from '@/lib/assessment-interview'
 
 const FORMAT_PROMPTS: Record<string, string> = {
   coding: "Start a live coding interview. Present one focused coding challenge relevant to the role. State the problem clearly with examples.",
@@ -80,9 +81,15 @@ ${candidateContext}${instructionContext}
 
 Start the interview now with your opening question.`
 
+  const directive = buildAssessDirective({
+    format: roundConfig.format,
+    role: assessment.role,
+    instructions: roundConfig.instructions,
+  })
+
   const { text: openingQuestion } = await generateText({
     model: await getModel(),
-    system: INTERVIEW_SYSTEM_PROMPT,
+    system: INTERVIEW_SYSTEM_PROMPT + directive,
     prompt,
     maxOutputTokens: 500,
   })

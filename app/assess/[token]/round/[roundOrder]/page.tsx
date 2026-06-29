@@ -123,7 +123,11 @@ export default function AssessRoundPage({ params }: { params: Promise<{ token: s
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  async function sendMessage(content: string, isHint = false) {
+  async function sendMessage(
+    content: string,
+    isHint = false,
+    codePayload?: { code: string; codeOutput: string; language: string }
+  ) {
     if (!content.trim() && !isHint) return
     if (!sessionId) return
 
@@ -137,7 +141,7 @@ export default function AssessRoundPage({ params }: { params: Promise<{ token: s
       const res = await fetch(`/api/assess/${token}/round/${roundOrder}/respond`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId, message: content, isHint }),
+        body: JSON.stringify({ sessionId, message: content, isHint, ...codePayload }),
       })
 
       if (!res.ok) throw new Error('Response failed')
@@ -191,9 +195,10 @@ export default function AssessRoundPage({ params }: { params: Promise<{ token: s
     }
   }
 
-  async function runCode() {
+  async function runCode(): Promise<string> {
     setIsRunning(true)
     setShowOutput(true)
+    let output = ''
     try {
       const res = await fetch('/api/code/execute', {
         method: 'POST',
@@ -201,12 +206,21 @@ export default function AssessRoundPage({ params }: { params: Promise<{ token: s
         body: JSON.stringify({ code, language }),
       })
       const data = await res.json()
-      setCodeOutput(data.stdout || data.compile_output || data.stderr || `Status: ${data.status?.description || 'Unknown'}`)
+      output = data.stdout || data.compile_output || data.stderr || `Status: ${data.status?.description || 'Unknown'}`
     } catch {
-      setCodeOutput('Error: Failed to execute code')
+      output = 'Error: Failed to execute code'
     } finally {
+      setCodeOutput(output)
       setIsRunning(false)
     }
+    return output
+  }
+
+  // Pillar 3 — submit executed code to the interviewer for a graded evaluation.
+  async function submitCode() {
+    if (!sessionId || isLoading || isRunning) return
+    const output = await runCode()
+    await sendMessage('Here is my solution for review.', false, { code, codeOutput: output, language })
   }
 
   if (isStarting) return (
@@ -362,9 +376,12 @@ export default function AssessRoundPage({ params }: { params: Promise<{ token: s
                 <Button size="sm" variant="outline" onClick={() => setCode(DEFAULT_CODE[language] || '')} className="border-[#1A1E3A] text-[#AEB5E0] hover:text-white text-xs h-7">
                   <RotateCcw className="w-3 h-3 mr-1" /> Reset
                 </Button>
-                <Button size="sm" onClick={runCode} disabled={isRunning} className="bg-[#2DE2C5] text-[#05060F] hover:bg-[#1fb89e] text-xs h-7">
+                <Button size="sm" variant="outline" onClick={runCode} disabled={isRunning || isLoading} className="border-[#1A1E3A] text-[#AEB5E0] hover:text-white text-xs h-7">
                   {isRunning ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : <Play className="w-3.5 h-3.5 mr-1" />}
                   Run
+                </Button>
+                <Button size="sm" onClick={submitCode} disabled={isRunning || isLoading} className="bg-[#2DE2C5] text-[#05060F] hover:bg-[#1fb89e] text-xs h-7" title="Run your code and send it to the interviewer for evaluation">
+                  <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Submit
                 </Button>
               </div>
             </div>

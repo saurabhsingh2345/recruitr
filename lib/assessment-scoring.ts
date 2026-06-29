@@ -158,6 +158,9 @@ export async function scoreAssessmentRound(opts: {
   format: string
   role: string
   candidateTurns: number
+  /** Executed-code submissions (Pillar 3). Their codeScore (0-10) is ground
+   * truth and overrides the LLM's chat-based code_correctness rating. */
+  codeSubmissions?: { codeScore?: number }[]
 }): Promise<AssessmentRoundResult> {
   const blueprint = COMPETENCY_BLUEPRINTS[opts.format] || COMPETENCY_BLUEPRINTS.coding
 
@@ -236,6 +239,21 @@ Return ONLY valid JSON (no markdown, no code fences):
       confidence: hasRating ? normConfidence(rated!.confidence) : 'low',
     }
   })
+
+  // Pillar 3 — override code_correctness with executed-code ground truth.
+  // Real test runs beat the LLM's read of the conversation. Blend 70% executed
+  // / 30% LLM so genuinely correct code that the model under-rated still wins.
+  const scoredSubs = (opts.codeSubmissions || []).filter((s) => typeof s.codeScore === 'number')
+  if (scoredSubs.length > 0) {
+    const cc = competencies.find((c) => c.key === 'code_correctness')
+    if (cc) {
+      const avgExec = scoredSubs.reduce((s, x) => s + (x.codeScore as number), 0) / scoredSubs.length
+      const execScore = Math.round(avgExec * 10) // 0-10 → 0-100
+      cc.score = Math.round(execScore * 0.7 + cc.score * 0.3)
+      cc.confidence = 'high' // executed code is the strongest possible evidence
+      cc.evidence = `${scoredSubs.length} code submission${scoredSubs.length !== 1 ? 's' : ''} executed, avg ${avgExec.toFixed(1)}/10 correctness`
+    }
+  }
 
   // Weighted 0-100 round score.
   const totalWeight = competencies.reduce((s, c) => s + c.weight, 0) || 1
