@@ -40,9 +40,22 @@ export const PROFILES_SCHEMA = {
     { name: 'bio',          type: 'string', optional: true },
     { name: 'location',     type: 'string', optional: true, facet: true },
     { name: 'skills',       type: 'string[]', facet: true },
+    { name: 'searchText',   type: 'string', optional: true },
     { name: 'avgScore',     type: 'float' },
     { name: 'openToWork',   type: 'bool', facet: true },
     { name: 'updatedAt',    type: 'int64' },
+    // Auto-embedded vector for semantic search. Typesense generates the vector
+    // on its own server from the listed fields (built-in MiniLM model — no
+    // external embedding API needed), so a recruiter can search by intent
+    // ("someone who can own infra at an early stage") not just keywords.
+    {
+      name: 'embedding',
+      type: 'float[]',
+      embed: {
+        from: ['name', 'searchText', 'skills'],
+        model_config: { model_name: 'ts/all-MiniLM-L12-v2' },
+      },
+    },
   ],
   default_sorting_field: 'avgScore',
 }
@@ -64,7 +77,7 @@ export async function ensureCollections() {
 
 // ── Index a profile ───────────────────────────────────────────────────────
 
-export async function indexProfile(doc: {
+export interface ProfileDoc {
   id: string
   userId: string
   username: string
@@ -72,10 +85,14 @@ export async function indexProfile(doc: {
   bio?: string
   location?: string
   skills: string[]
+  /** rich free-text (skills + evidence + projects) the embedding is built from */
+  searchText?: string
   avgScore: number
   openToWork: boolean
   updatedAt: number
-}) {
+}
+
+export async function indexProfile(doc: ProfileDoc) {
   if (!typesenseEnabled) return
   try {
     await tsRequest(`/collections/profiles/documents/${doc.id}`, {
@@ -87,6 +104,35 @@ export async function indexProfile(doc: {
   }
 }
 
+/** Bulk upsert via JSONL import — used by the backfill job. Returns count indexed. */
+export async function indexProfilesBatch(docs: ProfileDoc[]): Promise<number> {
+  if (!typesenseEnabled || docs.length === 0) return 0
+  try {
+    const jsonl = docs.map((d) => JSON.stringify(d)).join('\n')
+    const res = await fetch(`${BASE_URL}/collections/profiles/documents/import?action=upsert`, {
+      method: 'POST',
+      headers: { 'X-TYPESENSE-API-KEY': TYPESENSE_API_KEY!, 'Content-Type': 'text/plain' },
+      body: jsonl,
+    })
+    if (!res.ok) throw new Error(`Typesense import ${res.status}: ${await res.text()}`)
+    const text = await res.text()
+    // import returns one JSON result per line; count the successes
+    return text.split('\n').filter((l) => l.includes('"success":true')).length
+  } catch (err) {
+    console.error('[typesense] indexProfilesBatch failed:', err)
+    return 0
+  }
+}
+
+export async function deleteProfileFromIndex(userId: string) {
+  if (!typesenseEnabled) return
+  try {
+    await tsRequest(`/collections/profiles/documents/${userId}`, { method: 'DELETE' })
+  } catch {
+    // best-effort
+  }
+}
+
 // ── Search candidates ─────────────────────────────────────────────────────
 
 export interface TypesenseSearchParams {
@@ -94,6 +140,7 @@ export interface TypesenseSearchParams {
   skills?: string[]
   location?: string
   openToWork?: boolean
+  minScore?: number
   page?: number
   perPage?: number
 }
@@ -115,11 +162,15 @@ export async function searchCandidates(params: TypesenseSearchParams): Promise<T
   if (params.skills?.length) filterParts.push(`skills:=[${params.skills.map(s => `\`${s}\``).join(',')}]`)
   if (params.location) filterParts.push(`location:=${params.location}`)
   if (params.openToWork != null) filterParts.push(`openToWork:=${params.openToWork}`)
+  if (params.minScore && params.minScore > 0) filterParts.push(`avgScore:>=${params.minScore}`)
 
+  const hasQuery = Boolean(params.q && params.q.trim() && params.q !== '*')
+  // With a real query → hybrid (keyword + vector) so intent matches, not just
+  // tokens. With no query → fall back to ranking by score.
   const query = new URLSearchParams({
-    q: params.q || '*',
-    query_by: 'name,username,skills,bio',
-    sort_by: 'avgScore:desc',
+    q: hasQuery ? params.q : '*',
+    query_by: hasQuery ? 'name,username,skills,bio,embedding' : 'name',
+    ...(hasQuery ? {} : { sort_by: 'avgScore:desc' }),
     page: String(params.page ?? 1),
     per_page: String(params.perPage ?? 20),
     ...(filterParts.length ? { filter_by: filterParts.join(' && ') } : {}),

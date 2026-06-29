@@ -9,6 +9,7 @@ import { fetchGitHubRepos, reposToSummary } from '@/lib/github'
 import { generateText } from 'ai'
 import { checkWatchlistAlerts } from '@/lib/watchlist'
 import { enqueueAutonomousSourcing } from '@/lib/queues/autonomousSourcing'
+import { syncProfileToSearch } from '@/lib/search-index'
 
 export async function POST(_req: NextRequest) {
   const session = await auth()
@@ -120,6 +121,8 @@ ${profile.rawResumeText || 'No resume uploaded yet.'}
     }))
     checkWatchlistAlerts(session.user.id, updatedSkills).catch(() => {})
     enqueueAutonomousSourcing(session.user.id, updatedSkills.map((s: { name: string }) => s.name)).catch(() => {})
+    // Keep the semantic search index fresh (no-op when Typesense isn't configured).
+    syncProfileToSearch(session.user.id).catch(() => {})
 
     return NextResponse.json({
       success: true,

@@ -21,6 +21,8 @@ export interface IInviteRound {
   competencies?: ICompetencyScore[]
   confidence?: 'high' | 'medium' | 'low'
   weight?: number
+  /** version of the standardized question bank this round was anchored on (Pillar 2) */
+  questionBankVersion?: string
   integrity?: {
     score: number
     level: 'clean' | 'minor' | 'flagged'
@@ -58,6 +60,24 @@ export interface IAssessmentInvite extends Document {
     note?: string
     recordedAt: Date
   }
+  /** Snapshot of the calibrated bar this candidate was judged against (Pillar 7 closed loop). */
+  calibration?: {
+    applied: boolean
+    sampleSize: number
+    hireThreshold: number
+    hireShift: number
+  }
+  /** Hiring-committee synthesis across rounds + human notes (Panel agent). */
+  panelBrief?: {
+    recommendation: 'strong_hire' | 'hire' | 'maybe' | 'no_hire'
+    consensus: string[]
+    divergence: string[]
+    risks: string[]
+    debriefQuestions: string[]
+    summary: string
+    humanNotes?: string
+    generatedAt: Date
+  }
   status: 'invited' | 'started' | 'completed' | 'expired'
   invitedAt: Date
   completedAt?: Date
@@ -92,6 +112,7 @@ const InviteRoundSchema = new Schema<IInviteRound>(
     },
     confidence: { type: String, enum: ['high', 'medium', 'low'], default: undefined },
     weight: { type: Number, default: 1 },
+    questionBankVersion: { type: String, default: undefined },
     integrity: {
       type: {
         score: Number,
@@ -141,6 +162,28 @@ const AssessmentInviteSchema = new Schema<IAssessmentInvite>({
       decision: { type: String, enum: ['hired', 'advanced', 'rejected', 'declined'] },
       note: { type: String, default: '' },
       recordedAt: { type: Date, default: Date.now },
+    },
+    default: undefined,
+  },
+  calibration: {
+    type: {
+      applied: Boolean,
+      sampleSize: Number,
+      hireThreshold: Number,
+      hireShift: Number,
+    },
+    default: undefined,
+  },
+  panelBrief: {
+    type: {
+      recommendation: { type: String, enum: ['strong_hire', 'hire', 'maybe', 'no_hire'] },
+      consensus: { type: [String], default: [] },
+      divergence: { type: [String], default: [] },
+      risks: { type: [String], default: [] },
+      debriefQuestions: { type: [String], default: [] },
+      summary: String,
+      humanNotes: { type: String, default: '' },
+      generatedAt: { type: Date, default: Date.now },
     },
     default: undefined,
   },

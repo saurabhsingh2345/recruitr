@@ -1,9 +1,25 @@
 export type Verdict = 'strong_hire' | 'hire' | 'maybe' | 'no_hire'
 
-export function computeVerdict(compositeScore: number): Verdict {
-  if (compositeScore >= 80) return 'strong_hire'
-  if (compositeScore >= 65) return 'hire'
-  if (compositeScore >= 50) return 'maybe'
+/** Composite cut-points that map a 0-100 score onto a verdict. */
+export interface VerdictThresholds {
+  strong_hire: number
+  hire: number
+  maybe: number
+}
+
+export const DEFAULT_THRESHOLDS: VerdictThresholds = {
+  strong_hire: 80,
+  hire: 65,
+  maybe: 50,
+}
+
+export function computeVerdict(
+  compositeScore: number,
+  thresholds: VerdictThresholds = DEFAULT_THRESHOLDS
+): Verdict {
+  if (compositeScore >= thresholds.strong_hire) return 'strong_hire'
+  if (compositeScore >= thresholds.hire) return 'hire'
+  if (compositeScore >= thresholds.maybe) return 'maybe'
   return 'no_hire'
 }
 
@@ -38,8 +54,12 @@ export function computeWeightedComposite(rounds: ScoredRound[]): number {
  * averaged away by strong performance elsewhere. This is the hook recruiter-
  * defined must-haves (Pillar 6) will plug into.
  */
-export function computeGatedVerdict(composite: number, rounds: ScoredRound[]): Verdict {
-  const base = computeVerdict(composite)
+export function computeGatedVerdict(
+  composite: number,
+  rounds: ScoredRound[],
+  thresholds: VerdictThresholds = DEFAULT_THRESHOLDS
+): Verdict {
+  const base = computeVerdict(composite, thresholds)
   const hasCriticalFail =
     rounds.some((r) => typeof r.minRating === 'number' && r.minRating <= 1) ||
     rounds.some((r) => r.barFailed === true)

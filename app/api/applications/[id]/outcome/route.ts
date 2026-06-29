@@ -64,7 +64,7 @@ export async function PATCH(
     // Write HireSignal records for each top skill when hired
     if (result === 'hired') {
       const candidateId = app.candidateId
-      writeHireSignals(candidateId, id, hiredRole || app.jobTitle || '', hiredAt).catch(() => {})
+      writeHireSignals(candidateId, id, hiredRole || app.jobTitle || '', Number(hiredSalaryLPA) || 0, hiredAt).catch(() => {})
     }
 
     return NextResponse.json({ success: true })
@@ -78,6 +78,7 @@ async function writeHireSignals(
   candidateId: string,
   applicationId: string,
   targetRole: string,
+  hiredSalaryLPA: number,
   hiredAt: Date
 ) {
   const [profile, sessions] = await Promise.all([
@@ -112,6 +113,7 @@ async function writeHireSignals(
       sessionCount,
       sessionAvgScore,
       targetRole,
+      hiredSalaryLPA,
       hiredAt,
     }
   })

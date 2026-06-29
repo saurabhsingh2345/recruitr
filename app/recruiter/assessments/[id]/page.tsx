@@ -3,19 +3,23 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Users, Clock, Download, ExternalLink, ChevronLeft, Loader2, X } from 'lucide-react'
+import { Users, Clock, Download, ExternalLink, ChevronLeft, Loader2, X, List, LayoutGrid } from 'lucide-react'
+import { PoolComparison } from '@/components/recruiter/PoolComparison'
+import { PanelModal, type PanelBriefData } from '@/components/recruiter/PanelModal'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
 import { VERDICT_LABELS, VERDICT_COLORS } from '@/lib/assessment'
 import { INTEGRITY_COLORS } from '@/lib/assessment-integrity'
 import { computeCalibration, OUTCOME_LABELS, type OutcomeDecision } from '@/lib/assessment-calibration'
+import { computeCalibratedThresholds } from '@/lib/assessment-threshold'
 
 interface InviteRound {
   roundOrder: number
   status: string
   score?: number
   breakdown?: Record<string, number>
+  competencies?: { key: string; label?: string; rating?: number; score?: number }[]
 }
 
 interface Invite {
@@ -31,6 +35,7 @@ interface Invite {
   integrityScore?: number | null
   integrityLevel?: 'clean' | 'minor' | 'flagged' | null
   outcome?: { decision: OutcomeDecision; recordedAt: string } | null
+  panelBrief?: PanelBriefData | null
   rounds: InviteRound[]
 }
 
@@ -56,6 +61,8 @@ export default function AssessmentDashboardPage() {
   const [invites, setInvites] = useState<Invite[]>([])
   const [loading, setLoading] = useState(true)
   const [closing, setClosing] = useState(false)
+  const [view, setView] = useState<'list' | 'compare'>('list')
+  const [panelInvite, setPanelInvite] = useState<Invite | null>(null)
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/recruiter/assessments/${id}`)
@@ -139,6 +146,7 @@ export default function AssessmentDashboardPage() {
   const strongHire = invites.filter((i) => i.verdict === 'strong_hire' || i.verdict === 'hire').length
   const bestScore = invites.reduce((m, i) => Math.max(m, i.compositeScore || 0), 0)
   const calibration = computeCalibration(invites)
+  const calibratedBar = computeCalibratedThresholds(invites)
 
   return (
     <div className="min-h-screen bg-[#05060F] text-white">
@@ -216,15 +224,44 @@ export default function AssessmentDashboardPage() {
               })}
             </div>
             <div className="text-[10px] text-[#555] ml-auto">Based on {calibration.sampleSize} recorded outcome{calibration.sampleSize !== 1 ? 's' : ''}</div>
+            <div className="w-full border-t border-white/[0.06] pt-3 mt-1 flex items-center gap-2">
+              <span className={`text-[11px] font-mono ${calibratedBar.applied ? 'text-[#2DE2C5]' : 'text-[#888FC0]'}`}>
+                {calibratedBar.applied ? `Hire bar auto-tuned to ${calibratedBar.thresholds.hire}` : `Hire bar: ${calibratedBar.thresholds.hire} (default)`}
+              </span>
+              <span className="text-[10px] text-[#888FC0]">{calibratedBar.reason}</span>
+            </div>
           </div>
         )}
 
-        {/* Candidate table */}
+        {/* View toggle */}
+        {invites.length > 0 && (
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold text-[#AEB5E0]">Candidates</h2>
+            <div className="flex items-center gap-1 rounded-lg border border-white/[0.08] p-0.5">
+              <button
+                onClick={() => setView('list')}
+                className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md transition-colors ${view === 'list' ? 'bg-[#2DE2C5]/15 text-[#2DE2C5]' : 'text-[#888FC0] hover:text-white'}`}
+              >
+                <List className="w-3.5 h-3.5" /> List
+              </button>
+              <button
+                onClick={() => setView('compare')}
+                className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md transition-colors ${view === 'compare' ? 'bg-[#2DE2C5]/15 text-[#2DE2C5]' : 'text-[#888FC0] hover:text-white'}`}
+              >
+                <LayoutGrid className="w-3.5 h-3.5" /> Compare
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Candidate table / comparison */}
         {invites.length === 0 ? (
           <div className="rounded-xl border border-white/[0.06] p-12 text-center">
             <Users className="w-8 h-8 text-[#888FC0] mx-auto mb-3" />
             <p className="text-[#888FC0]">No candidates yet</p>
           </div>
+        ) : view === 'compare' ? (
+          <PoolComparison invites={invites} />
         ) : (
           <div className="rounded-xl border border-white/[0.06] overflow-hidden">
             <table className="w-full">
@@ -322,10 +359,22 @@ export default function AssessmentDashboardPage() {
                         </select>
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <Link href={`/assess/${invite.token}/report`} target="_blank"
-                          className="inline-flex items-center gap-1 text-xs text-[#888FC0] hover:text-[#2DE2C5] transition-colors">
-                          <ExternalLink className="w-3 h-3" /> Report
-                        </Link>
+                        <div className="flex items-center justify-end gap-3">
+                          {invite.rounds.some((r) => r.status === 'completed') && (
+                            <button
+                              onClick={() => setPanelInvite(invite)}
+                              className="inline-flex items-center gap-1 text-xs text-[#888FC0] hover:text-[#2DE2C5] transition-colors"
+                              title="Synthesize all rounds + notes into a committee brief"
+                            >
+                              <Users className="w-3 h-3" />
+                              Panel{invite.panelBrief ? ' ✓' : ''}
+                            </button>
+                          )}
+                          <Link href={`/assess/${invite.token}/report`} target="_blank"
+                            className="inline-flex items-center gap-1 text-xs text-[#888FC0] hover:text-[#2DE2C5] transition-colors">
+                            <ExternalLink className="w-3 h-3" /> Report
+                          </Link>
+                        </div>
                       </td>
                     </tr>
                   )
@@ -335,6 +384,22 @@ export default function AssessmentDashboardPage() {
           </div>
         )}
       </div>
+
+      {panelInvite && (
+        <PanelModal
+          assessmentId={id}
+          token={panelInvite.token}
+          candidateName={panelInvite.candidateName}
+          initialBrief={panelInvite.panelBrief}
+          onClose={() => setPanelInvite(null)}
+          onSaved={(brief) => {
+            setInvites((prev) =>
+              prev.map((iv) => (iv.token === panelInvite.token ? { ...iv, panelBrief: brief } : iv))
+            )
+            setPanelInvite((prev) => (prev ? { ...prev, panelBrief: brief } : prev))
+          }}
+        />
+      )}
     </div>
   )
 }

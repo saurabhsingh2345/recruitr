@@ -6,6 +6,7 @@ import { InterviewSession } from '@/lib/models/InterviewSession'
 import { getModel, INTERVIEW_SYSTEM_PROMPT } from '@/lib/groq'
 import { generateText } from 'ai'
 import { buildAssessDirective } from '@/lib/assessment-interview'
+import { getQuestionBank } from '@/lib/assessment-question-bank'
 
 const FORMAT_PROMPTS: Record<string, string> = {
   coding: "Start a live coding interview. Present one focused coding challenge relevant to the role. State the problem clearly with examples.",
@@ -108,6 +109,7 @@ Start the interview now with your opening question.`
   invite.rounds[inviteRoundIdx].sessionId = session._id
   invite.rounds[inviteRoundIdx].status = 'in_progress'
   invite.rounds[inviteRoundIdx].startedAt = new Date()
+  invite.rounds[inviteRoundIdx].questionBankVersion = getQuestionBank(roundConfig.format).version
   await invite.save()
 
   return NextResponse.json({

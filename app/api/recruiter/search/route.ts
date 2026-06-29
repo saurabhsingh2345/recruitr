@@ -44,16 +44,14 @@ export async function POST(req: NextRequest) {
     } = await req.json()
     const session = await auth()
 
-    // Try Typesense first for full-text search; fall back to MongoDB on miss/error
-    const tsHits = await searchCandidates({ q: query || '*', skills, page, perPage: 12 })
-    if (tsHits) {
-      return NextResponse.json({
-        candidates: tsHits,
-        total: tsHits.length,
-        pages: 1,
-        currentPage: page,
-        source: 'typesense',
-      })
+    // Semantic-first: Typesense ranks by intent (vector + keyword) and returns an
+    // ordered list of userIds. We then hydrate those from MongoDB through the SAME
+    // enrichment/masking pipeline so the response shape (and blind mode) is
+    // identical to the keyword path. Falls back to Mongo entirely on miss/error.
+    let semanticOrder: string[] | null = null
+    if (query && query.trim()) {
+      const tsHits = await searchCandidates({ q: query, skills, minScore, page, perPage: 12 })
+      if (tsHits && tsHits.length) semanticOrder = tsHits.map((h) => h.userId)
     }
 
     await connectDB()
@@ -61,6 +59,8 @@ export async function POST(req: NextRequest) {
     // Build filter
     const filter: Record<string, unknown> = { isPublic: true }
     if (vouchedOnly) filter['vouchedBadge'] = true
+    // In semantic mode, constrain to the candidates Typesense surfaced.
+    if (semanticOrder) filter['userId'] = { $in: semanticOrder }
 
     if (skills.length > 0) {
       // Each skill must match individually — $and ensures ALL required skills are present,
@@ -99,8 +99,9 @@ export async function POST(req: NextRequest) {
 
     const profiles = await Profile.find(filter)
       .select('userId githubUsername parsedSkills specializations projects cohortPercentile targetRole yearsOfExperience bio location')
-      .skip(skip)
-      .limit(limit)
+      // Semantic mode is already paginated + ordered by Typesense; don't re-skip.
+      .skip(semanticOrder ? 0 : skip)
+      .limit(semanticOrder ? semanticOrder.length : limit)
       .lean()
 
     const total = await Profile.countDocuments(filter)
@@ -130,7 +131,14 @@ export async function POST(req: NextRequest) {
       }
     })
 
-    if (query) {
+    if (semanticOrder) {
+      // Preserve Typesense's intent ranking.
+      const rank = new Map(semanticOrder.map((id, i) => [id, i]))
+      enriched.sort(
+        (a, b) =>
+          (rank.get(a.userId.toString()) ?? 999) - (rank.get(b.userId.toString()) ?? 999)
+      )
+    } else if (query) {
       const q = query.toLowerCase()
       enriched.sort((a, b) => {
         const aScore = a.topSkills.some((s: { name: string }) => s.name.toLowerCase().includes(q)) ? 1 : 0
@@ -157,9 +165,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       candidates: finalCandidates,
       total,
-      pages: Math.ceil(total / limit),
+      pages: semanticOrder ? page + (finalCandidates.length === 12 ? 1 : 0) : Math.ceil(total / limit),
       currentPage: page,
       blind,
+      source: semanticOrder ? 'semantic' : 'keyword',
     })
   } catch (error) {
     console.error('Recruiter search error:', error)

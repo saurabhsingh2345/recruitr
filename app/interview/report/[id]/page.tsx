@@ -416,6 +416,13 @@ export default function InterviewReportPage() {
             Back to dashboard
           </Link>
           <div className="flex items-center gap-3">
+            <Link
+              href={`/interview/receipt/${sessionId}`}
+              target="_blank"
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-foreground/[0.05] text-foreground/50 hover:text-foreground/80 border border-foreground/[0.08] transition-colors"
+            >
+              <Sparkles className="w-3 h-3" /> Proof receipt
+            </Link>
             {isPro && (
               shareUrl ? (
                 <button

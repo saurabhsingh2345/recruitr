@@ -159,6 +159,11 @@ export default function NewAssessmentPage() {
         body: JSON.stringify({ title, role, deadline, rounds, candidates: parsed }),
       })
       const data = await res.json()
+      if (res.status === 402) {
+        toast.error(data.message || 'Not enough assessment credits — buy more on the Assessments page.')
+        router.push('/recruiter/assessments')
+        return
+      }
       if (!res.ok) throw new Error(data.error || 'Failed')
       toast.success(`Assessment created — ${data.inviteCount} invite${data.inviteCount !== 1 ? 's' : ''} sent`)
       router.push(`/recruiter/assessments/${data.assessment._id}`)

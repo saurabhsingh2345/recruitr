@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Plus, Clock, Users, BarChart2, ChevronRight, Loader2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { AssessmentCredits } from '@/components/recruiter/AssessmentCredits'
 
 interface Assessment {
   _id: string
@@ -47,6 +48,8 @@ export default function AssessmentsListPage() {
             </Button>
           </Link>
         </div>
+
+        <AssessmentCredits />
 
         {loading ? (
           <div className="flex items-center justify-center py-24">

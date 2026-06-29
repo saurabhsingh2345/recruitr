@@ -8,6 +8,7 @@ export interface IHireSignal extends Document {
   sessionCount: number
   sessionAvgScore: number
   targetRole: string
+  hiredSalaryLPA: number
   hiredAt: Date
 }
 
@@ -19,6 +20,7 @@ const HireSignalSchema = new Schema<IHireSignal>({
   sessionCount: { type: Number, default: 0 },
   sessionAvgScore: { type: Number, default: 0 },
   targetRole: { type: String, default: '' },
+  hiredSalaryLPA: { type: Number, default: 0 },
   hiredAt: { type: Date, default: Date.now },
 })
 

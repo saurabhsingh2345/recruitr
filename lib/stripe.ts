@@ -6,6 +6,48 @@ export const stripe = process.env.STRIPE_SECRET_KEY
 
 export const PRO_PRICE_ID = process.env.STRIPE_PRO_PRICE_ID || ''
 
+/**
+ * Usage-based recruiter billing — assessment credits.
+ * One credit = one candidate assessed. Sold in packs (one-time payment), with
+ * a lower per-unit price at higher volume. Price IDs come from env so they can
+ * differ per environment; the pack metadata (credits) drives the grant.
+ */
+export interface CreditPack {
+  id: 'starter' | 'team' | 'scale'
+  name: string
+  credits: number
+  priceInr: number
+  priceId: string
+}
+
+export const CREDIT_PACKS: CreditPack[] = [
+  {
+    id: 'starter',
+    name: 'Starter',
+    credits: 10,
+    priceInr: 2999,
+    priceId: process.env.STRIPE_CREDITS_STARTER_PRICE_ID || '',
+  },
+  {
+    id: 'team',
+    name: 'Team',
+    credits: 25,
+    priceInr: 5999,
+    priceId: process.env.STRIPE_CREDITS_TEAM_PRICE_ID || '',
+  },
+  {
+    id: 'scale',
+    name: 'Scale',
+    credits: 100,
+    priceInr: 19999,
+    priceId: process.env.STRIPE_CREDITS_SCALE_PRICE_ID || '',
+  },
+]
+
+export function getCreditPack(id: string): CreditPack | undefined {
+  return CREDIT_PACKS.find((p) => p.id === id)
+}
+
 export const PLANS = {
   free: {
     name: 'Free',

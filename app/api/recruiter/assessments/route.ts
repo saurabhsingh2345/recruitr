@@ -81,6 +81,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
   }
 
+  // Usage-based billing: one credit per candidate assessed.
+  const needed = candidates.length
+  const balance = user.assessmentCredits ?? 0
+  if (balance < needed) {
+    return NextResponse.json(
+      {
+        error: 'INSUFFICIENT_CREDITS',
+        message: `This assessment needs ${needed} credit${needed !== 1 ? 's' : ''} but you have ${balance}.`,
+        needed,
+        balance,
+      },
+      { status: 402 }
+    )
+  }
+
   const assessment = await Assessment.create({
     recruiterId: user._id,
     title,
@@ -118,7 +133,16 @@ export async function POST(req: NextRequest) {
     ).catch(() => {})
   }
 
-  return NextResponse.json({ assessment, inviteCount: invites.length })
+  // Consume one credit per invite actually created.
+  if (invites.length > 0) {
+    await User.findByIdAndUpdate(user._id, { $inc: { assessmentCredits: -invites.length } })
+  }
+
+  return NextResponse.json({
+    assessment,
+    inviteCount: invites.length,
+    creditsRemaining: balance - invites.length,
+  })
 }
 
 export async function GET(req: NextRequest) {

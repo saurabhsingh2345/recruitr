@@ -64,6 +64,9 @@ export interface IUser extends Document {
   stripeSubscriptionId: string
   subscriptionStatus: string          // 'active' | 'canceled' | 'past_due' | 'trialing' | ''
   subscriptionCurrentPeriodEnd: Date | null
+  // Recruiter usage-based billing: one credit = one candidate assessed.
+  assessmentCredits: number
+  assessmentCreditsPurchased: number  // lifetime, for analytics
   createdAt: Date
 }
 
@@ -126,6 +129,9 @@ const UserSchema = new Schema<IUser>({
   stripeSubscriptionId: { type: String, default: '' },
   subscriptionStatus: { type: String, default: '' },
   subscriptionCurrentPeriodEnd: { type: Date, default: null },
+  // 3 free credits so a recruiter can try the assessment flow before paying.
+  assessmentCredits: { type: Number, default: 3 },
+  assessmentCreditsPurchased: { type: Number, default: 0 },
   createdAt: { type: Date, default: Date.now },
 })
 

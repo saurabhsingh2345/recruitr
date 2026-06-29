@@ -26,6 +26,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 import { getScoreColor, getScoreLabel, getConfidenceBand, getDecaySignal } from '@/lib/scoring'
 import { SkillConstellation } from '@/components/SkillConstellation'
+import { CompIntelCard } from '@/components/CompIntelCard'
 import { CompanyModeToggle } from '@/components/interview/CompanyModeToggle'
 
 interface SkillScore {
@@ -671,6 +672,13 @@ export default function DashboardPage() {
                       />
                     ))}
                   </div>
+                </div>
+              )}
+
+              {/* Comp intelligence — what your proof level is worth, from verified hires */}
+              {topSkill && (
+                <div className="mt-6">
+                  <CompIntelCard skill={topSkill.name} proofScore={topSkill.proofScore} />
                 </div>
               )}
             </div>

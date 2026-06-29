@@ -15,6 +15,8 @@ import {
 import { scoreAssessmentRound } from '@/lib/assessment-scoring'
 import { computeIntegrity, aggregateIntegrity } from '@/lib/assessment-integrity'
 import { buildGapsWithNextSteps, suggestNextSession } from '@/lib/interview-insights'
+import { computeCalibratedThresholds, type CalibrationSample } from '@/lib/assessment-threshold'
+import { DEFAULT_THRESHOLDS } from '@/lib/assessment'
 
 export async function PATCH(
   req: NextRequest,
@@ -141,8 +143,49 @@ export async function PATCH(
       })
 
     invite.compositeScore = computeWeightedComposite(scoredRounds)
-    invite.verdict = computeGatedVerdict(invite.compositeScore, scoredRounds)
+
+    // Pillar 7 (closed loop) — calibrate the hire bar against the outcomes this
+    // recruiter actually records for this role, then judge against that bar.
+    let calibrated = {
+      thresholds: DEFAULT_THRESHOLDS,
+      applied: false,
+      sampleSize: 0,
+      hireShift: 0,
+    }
+    try {
+      if (assessment?.recruiterId) {
+        const roleAssessmentIds = await Assessment.find({
+          recruiterId: assessment.recruiterId,
+          role: assessment.role,
+        }).distinct('_id')
+        const priorInvites = await AssessmentInvite.find({
+          assessmentId: { $in: roleAssessmentIds },
+          'outcome.decision': { $exists: true },
+          compositeScore: { $gt: 0 },
+          _id: { $ne: invite._id },
+        })
+          .select('compositeScore outcome')
+          .lean()
+        const cal = computeCalibratedThresholds(priorInvites as unknown as CalibrationSample[])
+        calibrated = {
+          thresholds: cal.thresholds,
+          applied: cal.applied,
+          sampleSize: cal.sampleSize,
+          hireShift: cal.hireShift,
+        }
+      }
+    } catch (e) {
+      console.error('Calibration lookup failed, using default bar:', e)
+    }
+
+    invite.verdict = computeGatedVerdict(invite.compositeScore, scoredRounds, calibrated.thresholds)
     invite.confidence = computeOverallConfidence(scoredRounds)
+    invite.calibration = {
+      applied: calibrated.applied,
+      sampleSize: calibrated.sampleSize,
+      hireThreshold: calibrated.thresholds.hire,
+      hireShift: calibrated.hireShift,
+    }
 
     // Aggregate integrity across completed rounds (weakest round wins).
     const completedForIntegrity = invite.rounds.filter(

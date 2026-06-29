@@ -15,6 +15,10 @@
     {
       "path": "/api/cron/infer-specializations",
       "schedule": "0 8 * * 0"
+    },
+    {
+      "path": "/api/cron/index-profiles",
+      "schedule": "0 3 * * *"
     }
   ]
 }

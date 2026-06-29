@@ -29,6 +29,20 @@ export async function POST(req: NextRequest) {
     switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session
+
+        // One-time purchase: assessment credits (recruiter usage-based billing).
+        if (session.mode === 'payment' && session.metadata?.kind === 'assessment_credits') {
+          const creditUserId = session.metadata?.userId
+          const credits = parseInt(session.metadata?.credits || '0', 10)
+          if (creditUserId && credits > 0) {
+            await User.findByIdAndUpdate(creditUserId, {
+              $inc: { assessmentCredits: credits, assessmentCreditsPurchased: credits },
+            })
+            console.log(`[billing] +${credits} assessment credits for user ${creditUserId}`)
+          }
+          break
+        }
+
         if (session.mode !== 'subscription') break
 
         const userId = session.metadata?.userId

@@ -1,4 +1,5 @@
 import { COMPETENCY_BLUEPRINTS } from './assessment-scoring'
+import { renderBankDirective } from './assessment-question-bank'
 
 /** Formats where the candidate writes & runs real code. */
 export const ASSESS_CODING_FORMATS = ['coding', 'gap']
@@ -29,6 +30,7 @@ export function buildAssessDirective(opts: { format: string; role: string; instr
     .join('\n')
 
   const coding = ASSESS_CODING_FORMATS.includes(opts.format) ? ASSESS_CODING_PROTOCOL : ''
+  const bankDirective = renderBankDirective(opts.format, opts.role)
   const instructionLine = opts.instructions?.trim()
     ? `\nRECRUITER INSTRUCTIONS FOR THIS ROUND (highest priority): ${opts.instructions.trim()}`
     : ''
@@ -43,5 +45,5 @@ ${competencyLines}
 ADAPTIVE DIFFICULTY:
 - Open at a moderate baseline for the role. If the candidate answers strongly, escalate — push deeper and add constraints ("good — now what if the input doesn't fit in memory?"). If they struggle, hold the level and probe fundamentals before moving on.
 - Never let one thread consume the whole round; you are responsible for touching every competency above.
-- One focused question at a time. Keep them moving.${instructionLine}${coding}`
+- One focused question at a time. Keep them moving.${bankDirective}${instructionLine}${coding}`
 }
