@@ -1,5 +1,15 @@
 import mongoose, { Schema, Document, Types } from 'mongoose'
 
+export interface ICompetencyScore {
+  key: string
+  label: string
+  rating: number // 1-5 anchored
+  score: number // 0-100, derived
+  weight: number
+  evidence: string
+  confidence: 'high' | 'medium' | 'low'
+}
+
 export interface IInviteRound {
   roundOrder: number
   sessionId?: Types.ObjectId
@@ -8,6 +18,9 @@ export interface IInviteRound {
   completedAt?: Date
   score?: number
   breakdown?: Record<string, number>
+  competencies?: ICompetencyScore[]
+  confidence?: 'high' | 'medium' | 'low'
+  weight?: number
 }
 
 export interface IAssessmentInvite extends Document {
@@ -20,6 +33,7 @@ export interface IAssessmentInvite extends Document {
   compositeScore: number
   verdict: 'strong_hire' | 'hire' | 'maybe' | 'no_hire' | null
   verdictReason: string
+  confidence: 'high' | 'medium' | 'low' | null
   status: 'invited' | 'started' | 'completed' | 'expired'
   invitedAt: Date
   completedAt?: Date
@@ -38,6 +52,22 @@ const InviteRoundSchema = new Schema<IInviteRound>(
     completedAt: Date,
     score: Number,
     breakdown: { type: Map, of: Number },
+    competencies: {
+      type: [
+        {
+          key: String,
+          label: String,
+          rating: Number,
+          score: Number,
+          weight: Number,
+          evidence: String,
+          confidence: { type: String, enum: ['high', 'medium', 'low'], default: 'medium' },
+        },
+      ],
+      default: undefined,
+    },
+    confidence: { type: String, enum: ['high', 'medium', 'low'], default: undefined },
+    weight: { type: Number, default: 1 },
   },
   { _id: false }
 )
@@ -56,6 +86,7 @@ const AssessmentInviteSchema = new Schema<IAssessmentInvite>({
     default: null,
   },
   verdictReason: { type: String, default: '' },
+  confidence: { type: String, enum: ['high', 'medium', 'low', null], default: null },
   status: {
     type: String,
     enum: ['invited', 'started', 'completed', 'expired'],

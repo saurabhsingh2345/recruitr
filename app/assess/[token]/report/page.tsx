@@ -18,11 +18,25 @@ const FORMAT_LABELS: Record<string, string> = {
   design_critique: 'Design Critique', ops_case: 'Ops / Program Mgmt', sales_discovery: 'Sales Discovery',
 }
 
+const CONF_LABEL: Record<'high' | 'medium' | 'low', string> = { high: 'High', medium: 'Medium', low: 'Low' }
+
+interface CompetencyScore {
+  key: string
+  label: string
+  rating: number
+  score: number
+  weight: number
+  evidence: string
+  confidence: 'high' | 'medium' | 'low'
+}
+
 interface RoundReport {
   roundOrder: number
   status: string
   score?: number
   breakdown?: Record<string, number>
+  competencies?: CompetencyScore[]
+  confidence?: 'high' | 'medium' | 'low'
   sessionReport?: {
     format: string
     scores: { overall: number; breakdown: Record<string, number> }
@@ -42,7 +56,7 @@ export default function AssessReportPage({ params }: { params: Promise<{ token: 
   const { token } = use(params)
   const router = useRouter()
   const [data, setData] = useState<{
-    invite: { candidateName: string; compositeScore: number; verdict: string | null; verdictReason: string; userId?: string; rounds: RoundReport[]; status: string }
+    invite: { candidateName: string; compositeScore: number; verdict: string | null; verdictReason: string; confidence?: 'high' | 'medium' | 'low' | null; userId?: string; rounds: RoundReport[]; status: string }
     assessment: { title: string; role: string; rounds: AssessmentRound[] }
     company: string
     isRecruiterView: boolean
@@ -114,12 +128,20 @@ export default function AssessReportPage({ params }: { params: Promise<{ token: 
             {invite.compositeScore || 0}
           </div>
           <div className="text-sm text-[#888FC0] mb-3">Composite score / 100</div>
-          {verdictLabel && (
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-semibold border"
-              style={{ color: verdictColor, borderColor: verdictColor + '40', backgroundColor: verdictColor + '15' }}>
-              <CheckCircle2 className="w-3.5 h-3.5" /> {verdictLabel}
-            </span>
-          )}
+          <div className="flex items-center justify-center gap-2 flex-wrap">
+            {verdictLabel && (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-semibold border"
+                style={{ color: verdictColor, borderColor: verdictColor + '40', backgroundColor: verdictColor + '15' }}>
+                <CheckCircle2 className="w-3.5 h-3.5" /> {verdictLabel}
+              </span>
+            )}
+            {invite.confidence && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border border-white/[0.1] text-[#AEB5E0] bg-white/[0.03]"
+                title="How much signal the assessment captured. Lower with thin transcripts or inconsistent rounds.">
+                {CONF_LABEL[invite.confidence]} confidence
+              </span>
+            )}
+          </div>
           {isRecruiterView && invite.verdictReason && (
             <p className="text-sm text-[#AEB5E0] mt-3 italic leading-relaxed max-w-sm mx-auto">
               &ldquo;{invite.verdictReason}&rdquo;
@@ -160,8 +182,32 @@ export default function AssessReportPage({ params }: { params: Promise<{ token: 
 
                 {isExpanded && report && (
                   <div className="border-t border-white/[0.06] p-4 space-y-4">
-                    {/* Score breakdown */}
-                    {report.scores?.breakdown && Object.keys(report.scores.breakdown).length > 0 && (
+                    {/* Competency breakdown — anchored ratings with evidence */}
+                    {ir?.competencies && ir.competencies.length > 0 ? (
+                      <div>
+                        <div className="text-xs text-[#888FC0] font-semibold uppercase tracking-wider mb-2">
+                          <BarChart2 className="w-3 h-3 inline mr-1" />Competencies
+                        </div>
+                        <div className="space-y-3">
+                          {ir.competencies.map((c) => (
+                            <div key={c.key}>
+                              <div className="flex items-center gap-3">
+                                <div className="text-xs text-[#AEB5E0] w-36">{c.label}</div>
+                                <div className="flex-1 h-1.5 bg-white/[0.06] rounded-full overflow-hidden">
+                                  <div className="h-full rounded-full" style={{ width: `${c.score}%`, backgroundColor: getScoreColor(c.score) }} />
+                                </div>
+                                <span className="text-xs font-mono w-12 text-right" style={{ color: getScoreColor(c.score) }}>{c.rating}/5</span>
+                              </div>
+                              {c.evidence && c.evidence !== 'Not assessed' && (
+                                <p className="text-[11px] text-[#888FC0] italic mt-1 ml-0 pl-3 border-l border-white/[0.08] leading-snug">
+                                  &ldquo;{c.evidence}&rdquo;
+                                </p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : report.scores?.breakdown && Object.keys(report.scores.breakdown).length > 0 && (
                       <div>
                         <div className="text-xs text-[#888FC0] font-semibold uppercase tracking-wider mb-2">
                           <BarChart2 className="w-3 h-3 inline mr-1" />Score breakdown

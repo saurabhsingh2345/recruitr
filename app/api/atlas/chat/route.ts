@@ -29,6 +29,7 @@ Goal coaching rule: If the candidate has a Career Goal set, ALWAYS reference it 
 - If a specific skill score is below 70 and blocking their card, name it.
 - Recommend the exact interview format that matches their target role (PM Case Study for PM roles, Design Critique for design, etc.).
 - Never say "you might want to" — say "you should" or "do this next".
+- A precomputed "NEXT ACTION TOWARD GOAL" line is provided in the context below. When the candidate has a goal, end your reply with that exact next step (rephrased naturally) unless they explicitly asked about something unrelated. This is the single most important thing you do — every answer should leave them knowing the one move that advances their goal.
 
 Tone: Direct, warm, knowledgeable — like a trusted senior engineer who is on your side.
 Never roleplay as a recruiter or pretend to be a different AI.`
@@ -129,6 +130,39 @@ export async function POST(req: NextRequest) {
         scoreNeeded > 0 ? `needs to raise a skill score to 70+ (currently ${topScore})` : '',
       ].filter(Boolean).join(' · ')
 
+  // Deterministic "next action toward goal" — maps target role → interview format,
+  // and names the single highest-leverage move. Atlas relays this instead of inferring.
+  const goalNextAction = (() => {
+    if (!goal) return ''
+    const roleText = `${goal.targetLevel || ''} ${goal.targetRole || ''}`.toLowerCase()
+    const FORMAT_FOR_ROLE: [RegExp, string, string][] = [
+      [/product|\bpm\b/, 'PM Case Study', '/interview/new?format=pm_case'],
+      [/design|ux|ui/, 'Design Critique', '/interview/new?format=design_critique'],
+      [/ops|program|project manager|tpm/, 'Ops / Program Mgmt', '/interview/new?format=ops_case'],
+      [/sales|account|revenue|gtm/, 'Sales Discovery', '/interview/new?format=sales_discovery'],
+      [/data|ml|ai|scien/, 'Live Coding', '/interview/new?format=coding'],
+      [/architect|staff|principal|senior|lead|distributed|backend|platform|infra/, 'System Design', '/interview/new?format=system_design'],
+    ]
+    const match = FORMAT_FOR_ROLE.find(([re]) => re.test(roleText))
+    const recommendedFormat = match ? match[1] : 'Live Coding'
+
+    // Find the lowest-scoring skill that's plausibly relevant to the goal (gates the card / blocks the role)
+    const blocking = (profile?.parsedSkills || [])
+      .filter((s) => s.proofScore < 70)
+      .sort((a, b) => a.proofScore - b.proofScore)[0]
+
+    if (sessionsNeeded > 0) {
+      return `NEXT ACTION TOWARD GOAL: Complete ${sessionsNeeded} more session${sessionsNeeded !== 1 ? 's' : ''} toward the Verified Card — start a ${recommendedFormat} session (best match for the ${goal.targetRole} goal).${blocking ? ` Prioritize raising ${blocking.name} (currently ${blocking.proofScore}/100).` : ''}`
+    }
+    if (scoreNeeded > 0 && blocking) {
+      return `NEXT ACTION TOWARD GOAL: Session count is met, but ${blocking.name} (${blocking.proofScore}/100) is below the 70 bar for the Verified Card. Do a ${recommendedFormat} session focused on ${blocking.name} to push it over 70.`
+    }
+    if (cardEligible && !existingCard) {
+      return `NEXT ACTION TOWARD GOAL: They qualify NOW — tell them to issue their Verified Card from the dashboard, then share it. That's the move.`
+    }
+    return `NEXT ACTION TOWARD GOAL: Card is issued. Keep momentum — a fresh ${recommendedFormat} session keeps scores from decaying and strengthens the ${goal.targetRole} case.`
+  })()
+
   const candidateContext = [
     `Candidate: ${user?.name || 'Engineer'}`,
     profile?.bio ? `Bio: ${profile.bio}` : '',
@@ -136,6 +170,7 @@ export async function POST(req: NextRequest) {
     `Target role: ${profile?.targetRole || 'Software Engineer'}`,
     `Cohort: top ${100 - (profile?.cohortPercentile || 50)}%`,
     goalLine,
+    goalNextAction,
     verifiedCardLine,
     experiences ? `Work experience: ${experiences}` : '',
     educations ? `Education: ${educations}` : '',

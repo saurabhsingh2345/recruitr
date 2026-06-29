@@ -25,6 +25,7 @@ interface Invite {
   compositeScore: number
   verdict: string | null
   verdictReason: string
+  confidence?: 'high' | 'medium' | 'low' | null
   rounds: InviteRound[]
 }
 
@@ -219,9 +220,16 @@ export default function AssessmentDashboardPage() {
                       </td>
                       <td className="px-4 py-3 text-center">
                         {verdictLabel ? (
-                          <span className="text-xs font-semibold px-2 py-0.5 rounded-full border" style={{ color: verdictColor, borderColor: verdictColor + '40', backgroundColor: verdictColor + '15' }}>
-                            {verdictLabel}
-                          </span>
+                          <div className="flex flex-col items-center gap-1">
+                            <span className="text-xs font-semibold px-2 py-0.5 rounded-full border" style={{ color: verdictColor, borderColor: verdictColor + '40', backgroundColor: verdictColor + '15' }}>
+                              {verdictLabel}
+                            </span>
+                            {invite.confidence && (
+                              <span className="text-[10px] text-[#888FC0]" title="Confidence in this verdict — lower with thin transcripts or inconsistent rounds">
+                                {invite.confidence} conf.
+                              </span>
+                            )}
+                          </div>
                         ) : (
                           <span className="text-[#555] text-xs">Pending</span>
                         )}
