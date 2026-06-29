@@ -6,6 +6,8 @@ export interface IAssessmentRound {
   title: string
   durationMinutes: number
   instructions?: string
+  weight?: number // round importance (default 1) — drives weighted composite
+  mustHaveCompetencies?: string[] // competency keys that must reach "meets bar" (rating ≥ 3)
 }
 
 export interface IAssessment extends Document {
@@ -29,6 +31,8 @@ const AssessmentSchema = new Schema<IAssessment>({
       title: { type: String, required: true },
       durationMinutes: { type: Number, default: 30 },
       instructions: { type: String, default: '' },
+      weight: { type: Number, default: 1 },
+      mustHaveCompetencies: { type: [String], default: [] },
     },
   ],
   deadline: { type: Date, required: true },

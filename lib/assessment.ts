@@ -18,6 +18,8 @@ export interface ScoredRound {
   confidence?: 'high' | 'medium' | 'low'
   /** lowest competency rating (1-5) seen in this round, for bar-gating */
   minRating?: number
+  /** a recruiter-defined must-have competency fell below "meets bar" (rating < 3) */
+  barFailed?: boolean
 }
 
 /**
@@ -38,7 +40,9 @@ export function computeWeightedComposite(rounds: ScoredRound[]): number {
  */
 export function computeGatedVerdict(composite: number, rounds: ScoredRound[]): Verdict {
   const base = computeVerdict(composite)
-  const hasCriticalFail = rounds.some((r) => typeof r.minRating === 'number' && r.minRating <= 1)
+  const hasCriticalFail =
+    rounds.some((r) => typeof r.minRating === 'number' && r.minRating <= 1) ||
+    rounds.some((r) => r.barFailed === true)
   if (!hasCriticalFail) return base
   // Cap at "maybe": never auto-recommend a hire over a fundamental gap.
   const order: Verdict[] = ['no_hire', 'maybe', 'hire', 'strong_hire']

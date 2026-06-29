@@ -98,9 +98,10 @@ export async function POST(req: NextRequest) {
       token,
       candidateName: candidate.name || '',
       candidateEmail: candidate.email,
-      rounds: rounds.map((r: { order: number }) => ({
+      rounds: rounds.map((r: { order: number; weight?: number }) => ({
         roundOrder: r.order,
         status: 'pending',
+        weight: r.weight ?? 1,
       })),
       status: 'invited',
       invitedAt: new Date(),

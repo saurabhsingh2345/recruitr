@@ -113,18 +113,32 @@ export async function PATCH(
       roundOrder: number
       weight?: number
       confidence?: 'high' | 'medium' | 'low'
-      competencies?: { rating: number; label?: string; evidence?: string }[]
+      competencies?: { key: string; rating: number; label?: string; evidence?: string }[]
     }
+    // Map each round to its recruiter-defined config (weight + must-have bars).
+    const roundConfigByOrder = new Map<number, { weight?: number; mustHaveCompetencies?: string[] }>(
+      (assessment?.rounds || []).map((r: { order: number; weight?: number; mustHaveCompetencies?: string[] }) =>
+        [r.order, { weight: r.weight, mustHaveCompetencies: r.mustHaveCompetencies }])
+    )
+
     const scoredRounds: ScoredRound[] = invite.rounds
       .filter((r: RoundShape) => r.status === 'completed' && typeof r.score === 'number')
-      .map((r: RoundShape) => ({
-        score: r.score as number,
-        weight: r.weight ?? 1,
-        confidence: r.confidence,
-        minRating: r.competencies?.length
-          ? Math.min(...r.competencies.map((c) => c.rating))
-          : undefined,
-      }))
+      .map((r: RoundShape) => {
+        const cfg = roundConfigByOrder.get(r.roundOrder)
+        const mustHaves = cfg?.mustHaveCompetencies || []
+        const barFailed = mustHaves.length > 0 && (r.competencies || []).some(
+          (c) => mustHaves.includes(c.key) && c.rating < 3
+        )
+        return {
+          score: r.score as number,
+          weight: cfg?.weight ?? r.weight ?? 1,
+          confidence: r.confidence,
+          minRating: r.competencies?.length
+            ? Math.min(...r.competencies.map((c) => c.rating))
+            : undefined,
+          barFailed,
+        }
+      })
 
     invite.compositeScore = computeWeightedComposite(scoredRounds)
     invite.verdict = computeGatedVerdict(invite.compositeScore, scoredRounds)

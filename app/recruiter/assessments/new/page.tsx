@@ -7,6 +7,13 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
+import { competenciesForFormat } from '@/lib/assessment-competencies'
+
+const WEIGHTS = [
+  { value: 1, label: 'Normal' },
+  { value: 2, label: 'Important (2×)' },
+  { value: 3, label: 'Critical (3×)' },
+]
 
 const FORMATS = [
   { id: 'coding', label: 'Live Coding', group: 'Engineering' },
@@ -28,6 +35,8 @@ interface Round {
   title: string
   durationMinutes: number
   instructions: string
+  weight: number
+  mustHaveCompetencies: string[]
 }
 
 interface Candidate {
@@ -47,7 +56,7 @@ export default function NewAssessmentPage() {
 
   // Step 2
   const [rounds, setRounds] = useState<Round[]>([
-    { order: 1, format: 'coding', title: 'Round 1', durationMinutes: 30, instructions: '' },
+    { order: 1, format: 'coding', title: 'Round 1', durationMinutes: 30, instructions: '', weight: 1, mustHaveCompetencies: [] },
   ])
 
   // Step 3
@@ -58,7 +67,7 @@ export default function NewAssessmentPage() {
   function addRound() {
     if (rounds.length >= 6) return
     const order = rounds.length + 1
-    setRounds([...rounds, { order, format: 'behavioural', title: `Round ${order}`, durationMinutes: 30, instructions: '' }])
+    setRounds([...rounds, { order, format: 'behavioural', title: `Round ${order}`, durationMinutes: 30, instructions: '', weight: 1, mustHaveCompetencies: [] }])
   }
 
   function removeRound(idx: number) {
@@ -77,6 +86,18 @@ export default function NewAssessmentPage() {
   function updateRound(idx: number, field: keyof Round, value: string | number) {
     const updated = [...rounds]
     updated[idx] = { ...updated[idx], [field]: value }
+    // Competencies differ by format — clear must-haves when format changes.
+    if (field === 'format') updated[idx].mustHaveCompetencies = []
+    setRounds(updated)
+  }
+
+  function toggleMustHave(idx: number, key: string) {
+    const updated = [...rounds]
+    const current = updated[idx].mustHaveCompetencies
+    updated[idx] = {
+      ...updated[idx],
+      mustHaveCompetencies: current.includes(key) ? current.filter((k) => k !== key) : [...current, key],
+    }
     setRounds(updated)
   }
 
@@ -252,9 +273,36 @@ export default function NewAssessmentPage() {
                       {DURATIONS.map((d) => <option key={d} value={d}>{d} minutes</option>)}
                     </select>
                   </div>
+                  <div>
+                    <label className={labelCls}>Weight</label>
+                    <select value={round.weight} onChange={(e) => updateRound(idx, 'weight', parseInt(e.target.value, 10))} className={inputCls}>
+                      {WEIGHTS.map((w) => <option key={w.value} value={w.value}>{w.label}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className={labelCls}>Instructions <span className="text-[#555]">(optional)</span></label>
+                    <textarea value={round.instructions} onChange={(e) => updateRound(idx, 'instructions', e.target.value)} placeholder="Shown to candidate before the round…" rows={1} className={`${inputCls} resize-none`} />
+                  </div>
                   <div className="col-span-2">
-                    <label className={labelCls}>Instructions for candidate <span className="text-[#555]">(optional)</span></label>
-                    <textarea value={round.instructions} onChange={(e) => updateRound(idx, 'instructions', e.target.value)} placeholder="Shown to candidate before the round starts…" rows={2} className={`${inputCls} resize-none`} />
+                    <label className={labelCls}>Must-have competencies <span className="text-[#555]">(below &ldquo;meets bar&rdquo; caps the verdict)</span></label>
+                    <div className="flex flex-wrap gap-1.5 mt-1">
+                      {competenciesForFormat(round.format).map((c) => {
+                        const on = round.mustHaveCompetencies.includes(c.key)
+                        return (
+                          <button
+                            key={c.key}
+                            type="button"
+                            onClick={() => toggleMustHave(idx, c.key)}
+                            title={c.definition}
+                            className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${on
+                              ? 'bg-[#2DE2C5]/15 text-[#2DE2C5] border-[#2DE2C5]/40'
+                              : 'bg-transparent text-[#888FC0] border-[#1A1E3A] hover:border-[#2DE2C5]/30'}`}
+                          >
+                            {c.label}
+                          </button>
+                        )
+                      })}
+                    </div>
                   </div>
                 </div>
               </div>
