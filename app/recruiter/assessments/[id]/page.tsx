@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
 import { VERDICT_LABELS, VERDICT_COLORS } from '@/lib/assessment'
 import { INTEGRITY_COLORS } from '@/lib/assessment-integrity'
+import { computeCalibration, OUTCOME_LABELS, type OutcomeDecision } from '@/lib/assessment-calibration'
 
 interface InviteRound {
   roundOrder: number
@@ -29,6 +30,7 @@ interface Invite {
   confidence?: 'high' | 'medium' | 'low' | null
   integrityScore?: number | null
   integrityLevel?: 'clean' | 'minor' | 'flagged' | null
+  outcome?: { decision: OutcomeDecision; recordedAt: string } | null
   rounds: InviteRound[]
 }
 
@@ -82,6 +84,17 @@ export default function AssessmentDashboardPage() {
     setClosing(false)
   }
 
+  async function recordOutcome(inviteId: string, decision: OutcomeDecision) {
+    // optimistic update
+    setInvites((prev) => prev.map((i) => (i._id === inviteId ? { ...i, outcome: { decision, recordedAt: new Date().toISOString() } } : i)))
+    const res = await fetch(`/api/recruiter/assessments/${id}/outcome`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ inviteId, decision }),
+    })
+    if (!res.ok) { toast.error('Failed to save outcome'); await load() }
+  }
+
   function exportCSV() {
     if (!assessment || !invites.length) return
     const headers = ['Name', 'Email', 'Composite Score', 'Verdict', 'Confidence', 'Integrity', ...assessment.rounds.map((r) => `Round ${r.order} Score`)]
@@ -125,6 +138,7 @@ export default function AssessmentDashboardPage() {
   const completed = invites.filter((i) => i.status === 'completed').length
   const strongHire = invites.filter((i) => i.verdict === 'strong_hire' || i.verdict === 'hire').length
   const bestScore = invites.reduce((m, i) => Math.max(m, i.compositeScore || 0), 0)
+  const calibration = computeCalibration(invites)
 
   return (
     <div className="min-h-screen bg-[#05060F] text-white">
@@ -175,6 +189,36 @@ export default function AssessmentDashboardPage() {
           ))}
         </div>
 
+        {/* Calibration — proves the verdicts against real outcomes */}
+        {calibration.sampleSize > 0 && (
+          <div className="rounded-xl border border-[#2DE2C5]/20 bg-[#2DE2C5]/[0.04] p-5 mb-8 flex flex-wrap items-center gap-6">
+            <div>
+              <div className="text-3xl font-bold font-mono text-[#2DE2C5]">
+                {calibration.verifiedHireRate !== null ? `${calibration.verifiedHireRate}%` : '—'}
+              </div>
+              <div className="text-xs text-[#AEB5E0] max-w-[180px] mt-1">
+                of candidates Intervue recommended were hired or advanced
+              </div>
+            </div>
+            <div className="h-10 w-px bg-white/[0.08]" />
+            <div className="flex flex-wrap gap-4">
+              {(['strong_hire', 'hire', 'maybe', 'no_hire'] as const).map((v) => {
+                const b = calibration.byVerdict[v]
+                if (b.total === 0) return null
+                return (
+                  <div key={v} className="text-center">
+                    <div className="text-sm font-mono font-bold" style={{ color: VERDICT_COLORS[v] }}>
+                      {b.rate}% <span className="text-[10px] text-[#888FC0]">({b.positive}/{b.total})</span>
+                    </div>
+                    <div className="text-[10px] text-[#888FC0]">{VERDICT_LABELS[v]}</div>
+                  </div>
+                )
+              })}
+            </div>
+            <div className="text-[10px] text-[#555] ml-auto">Based on {calibration.sampleSize} recorded outcome{calibration.sampleSize !== 1 ? 's' : ''}</div>
+          </div>
+        )}
+
         {/* Candidate table */}
         {invites.length === 0 ? (
           <div className="rounded-xl border border-white/[0.06] p-12 text-center">
@@ -192,6 +236,7 @@ export default function AssessmentDashboardPage() {
                   <th className="text-center px-4 py-3 text-xs text-[#888FC0] font-semibold uppercase tracking-wider">Verdict</th>
                   <th className="text-center px-4 py-3 text-xs text-[#888FC0] font-semibold uppercase tracking-wider">Integrity</th>
                   <th className="text-center px-4 py-3 text-xs text-[#888FC0] font-semibold uppercase tracking-wider">Rounds</th>
+                  <th className="text-center px-4 py-3 text-xs text-[#888FC0] font-semibold uppercase tracking-wider">Outcome</th>
                   <th className="px-4 py-3" />
                 </tr>
               </thead>
@@ -262,6 +307,19 @@ export default function AssessmentDashboardPage() {
                             </div>
                           ))}
                         </div>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <select
+                          value={invite.outcome?.decision || ''}
+                          onChange={(e) => e.target.value && recordOutcome(invite._id, e.target.value as OutcomeDecision)}
+                          className="bg-[#0B0E1C] border border-[#1A1E3A] rounded-md px-2 py-1 text-xs text-[#AEB5E0] focus:outline-none focus:border-[#2DE2C5]/40"
+                          title="Record what actually happened — this calibrates Intervue's verdicts"
+                        >
+                          <option value="">— Set —</option>
+                          {(Object.keys(OUTCOME_LABELS) as OutcomeDecision[]).map((d) => (
+                            <option key={d} value={d}>{OUTCOME_LABELS[d]}</option>
+                          ))}
+                        </select>
                       </td>
                       <td className="px-4 py-3 text-right">
                         <Link href={`/assess/${invite.token}/report`} target="_blank"

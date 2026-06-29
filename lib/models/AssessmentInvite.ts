@@ -53,6 +53,11 @@ export interface IAssessmentInvite extends Document {
     whereTheyStruggle: string[]
     probeInHumanRound: string[]
   }
+  outcome?: {
+    decision: 'hired' | 'advanced' | 'rejected' | 'declined'
+    note?: string
+    recordedAt: Date
+  }
   status: 'invited' | 'started' | 'completed' | 'expired'
   invitedAt: Date
   completedAt?: Date
@@ -128,6 +133,14 @@ const AssessmentInviteSchema = new Schema<IAssessmentInvite>({
       topStrength: String,
       whereTheyStruggle: { type: [String], default: [] },
       probeInHumanRound: { type: [String], default: [] },
+    },
+    default: undefined,
+  },
+  outcome: {
+    type: {
+      decision: { type: String, enum: ['hired', 'advanced', 'rejected', 'declined'] },
+      note: { type: String, default: '' },
+      recordedAt: { type: Date, default: Date.now },
     },
     default: undefined,
   },
