@@ -5,11 +5,12 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
   Loader2, CheckCircle2, AlertCircle, BookOpen, TrendingUp,
-  ChevronRight, Code2, BarChart2, Sparkles, X,
+  ChevronRight, Code2, BarChart2, Sparkles, X, ShieldCheck,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { VERDICT_LABELS, VERDICT_COLORS } from '@/lib/assessment'
+import { INTEGRITY_COLORS } from '@/lib/assessment-integrity'
 import { getScoreColor } from '@/lib/scoring'
 
 const FORMAT_LABELS: Record<string, string> = {
@@ -37,6 +38,7 @@ interface RoundReport {
   breakdown?: Record<string, number>
   competencies?: CompetencyScore[]
   confidence?: 'high' | 'medium' | 'low'
+  integrity?: { score: number; level: 'clean' | 'minor' | 'flagged'; flags: string[] }
   sessionReport?: {
     format: string
     scores: { overall: number; breakdown: Record<string, number> }
@@ -56,7 +58,7 @@ export default function AssessReportPage({ params }: { params: Promise<{ token: 
   const { token } = use(params)
   const router = useRouter()
   const [data, setData] = useState<{
-    invite: { candidateName: string; compositeScore: number; verdict: string | null; verdictReason: string; confidence?: 'high' | 'medium' | 'low' | null; userId?: string; rounds: RoundReport[]; status: string }
+    invite: { candidateName: string; compositeScore: number; verdict: string | null; verdictReason: string; confidence?: 'high' | 'medium' | 'low' | null; integrityScore?: number | null; integrityLevel?: 'clean' | 'minor' | 'flagged' | null; userId?: string; rounds: RoundReport[]; status: string }
     assessment: { title: string; role: string; rounds: AssessmentRound[] }
     company: string
     isRecruiterView: boolean
@@ -141,7 +143,23 @@ export default function AssessReportPage({ params }: { params: Promise<{ token: 
                 {CONF_LABEL[invite.confidence]} confidence
               </span>
             )}
+            {invite.integrityLevel && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border"
+                style={{ color: INTEGRITY_COLORS[invite.integrityLevel], borderColor: INTEGRITY_COLORS[invite.integrityLevel] + '40', backgroundColor: INTEGRITY_COLORS[invite.integrityLevel] + '12' }}
+                title="Integrity from proctoring signals (tab switches, time away, large pastes). 100 = clean.">
+                <ShieldCheck className="w-3 h-3" /> Integrity {invite.integrityScore}
+              </span>
+            )}
           </div>
+          {isRecruiterView && invite.integrityLevel && invite.integrityLevel !== 'clean' && (
+            <div className="mt-3 text-left max-w-sm mx-auto">
+              {invite.rounds.flatMap((r) => r.integrity?.flags || []).slice(0, 4).map((f, i) => (
+                <p key={i} className="text-xs text-[#f59e0b] flex items-start gap-1.5">
+                  <AlertCircle className="w-3 h-3 mt-0.5 shrink-0" />{f}
+                </p>
+              ))}
+            </div>
+          )}
           {isRecruiterView && invite.verdictReason && (
             <p className="text-sm text-[#AEB5E0] mt-3 italic leading-relaxed max-w-sm mx-auto">
               &ldquo;{invite.verdictReason}&rdquo;

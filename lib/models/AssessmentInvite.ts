@@ -21,6 +21,18 @@ export interface IInviteRound {
   competencies?: ICompetencyScore[]
   confidence?: 'high' | 'medium' | 'low'
   weight?: number
+  integrity?: {
+    score: number
+    level: 'clean' | 'minor' | 'flagged'
+    flags: string[]
+    signals: {
+      tabSwitches: number
+      focusLossSeconds: number
+      pasteCount: number
+      pastedChars: number
+      durationSeconds: number
+    }
+  }
 }
 
 export interface IAssessmentInvite extends Document {
@@ -34,6 +46,8 @@ export interface IAssessmentInvite extends Document {
   verdict: 'strong_hire' | 'hire' | 'maybe' | 'no_hire' | null
   verdictReason: string
   confidence: 'high' | 'medium' | 'low' | null
+  integrityScore: number | null
+  integrityLevel: 'clean' | 'minor' | 'flagged' | null
   status: 'invited' | 'started' | 'completed' | 'expired'
   invitedAt: Date
   completedAt?: Date
@@ -68,6 +82,21 @@ const InviteRoundSchema = new Schema<IInviteRound>(
     },
     confidence: { type: String, enum: ['high', 'medium', 'low'], default: undefined },
     weight: { type: Number, default: 1 },
+    integrity: {
+      type: {
+        score: Number,
+        level: { type: String, enum: ['clean', 'minor', 'flagged'] },
+        flags: { type: [String], default: [] },
+        signals: {
+          tabSwitches: Number,
+          focusLossSeconds: Number,
+          pasteCount: Number,
+          pastedChars: Number,
+          durationSeconds: Number,
+        },
+      },
+      default: undefined,
+    },
   },
   { _id: false }
 )
@@ -87,6 +116,8 @@ const AssessmentInviteSchema = new Schema<IAssessmentInvite>({
   },
   verdictReason: { type: String, default: '' },
   confidence: { type: String, enum: ['high', 'medium', 'low', null], default: null },
+  integrityScore: { type: Number, default: null },
+  integrityLevel: { type: String, enum: ['clean', 'minor', 'flagged', null], default: null },
   status: {
     type: String,
     enum: ['invited', 'started', 'completed', 'expired'],

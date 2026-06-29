@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
 import { VERDICT_LABELS, VERDICT_COLORS } from '@/lib/assessment'
+import { INTEGRITY_COLORS } from '@/lib/assessment-integrity'
 
 interface InviteRound {
   roundOrder: number
@@ -26,6 +27,8 @@ interface Invite {
   verdict: string | null
   verdictReason: string
   confidence?: 'high' | 'medium' | 'low' | null
+  integrityScore?: number | null
+  integrityLevel?: 'clean' | 'minor' | 'flagged' | null
   rounds: InviteRound[]
 }
 
@@ -81,12 +84,14 @@ export default function AssessmentDashboardPage() {
 
   function exportCSV() {
     if (!assessment || !invites.length) return
-    const headers = ['Name', 'Email', 'Composite Score', 'Verdict', ...assessment.rounds.map((r) => `Round ${r.order} Score`)]
+    const headers = ['Name', 'Email', 'Composite Score', 'Verdict', 'Confidence', 'Integrity', ...assessment.rounds.map((r) => `Round ${r.order} Score`)]
     const rows = invites.map((inv) => [
       inv.candidateName || '',
       inv.candidateEmail || '',
       inv.compositeScore || 0,
       inv.verdict ? VERDICT_LABELS[inv.verdict as keyof typeof VERDICT_LABELS] || inv.verdict : '',
+      inv.confidence || '',
+      inv.integrityScore ?? '',
       ...assessment.rounds.map((r) => {
         const rd = inv.rounds.find((ir) => ir.roundOrder === r.order)
         return rd?.score ?? ''
@@ -185,6 +190,7 @@ export default function AssessmentDashboardPage() {
                   <th className="text-left px-4 py-3 text-xs text-[#888FC0] font-semibold uppercase tracking-wider">Progress</th>
                   <th className="text-center px-4 py-3 text-xs text-[#888FC0] font-semibold uppercase tracking-wider">Score</th>
                   <th className="text-center px-4 py-3 text-xs text-[#888FC0] font-semibold uppercase tracking-wider">Verdict</th>
+                  <th className="text-center px-4 py-3 text-xs text-[#888FC0] font-semibold uppercase tracking-wider">Integrity</th>
                   <th className="text-center px-4 py-3 text-xs text-[#888FC0] font-semibold uppercase tracking-wider">Rounds</th>
                   <th className="px-4 py-3" />
                 </tr>
@@ -232,6 +238,16 @@ export default function AssessmentDashboardPage() {
                           </div>
                         ) : (
                           <span className="text-[#555] text-xs">Pending</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        {invite.integrityLevel ? (
+                          <span className="text-xs font-mono font-bold" style={{ color: INTEGRITY_COLORS[invite.integrityLevel] }}
+                            title={invite.integrityLevel === 'clean' ? 'No integrity flags' : 'Integrity flags — open the report for detail'}>
+                            {invite.integrityScore}
+                          </span>
+                        ) : (
+                          <span className="text-[#555] text-xs">—</span>
                         )}
                       </td>
                       <td className="px-4 py-3 text-center">

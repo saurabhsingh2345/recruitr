@@ -97,6 +97,34 @@ export default function AssessRoundPage({ params }: { params: Promise<{ token: s
 
   const chatEndRef = useRef<HTMLDivElement>(null)
 
+  // Pillar 4 — integrity signal capture (tab switches, focus loss, large pastes).
+  const tabSwitchesRef = useRef(0)
+  const focusLossRef = useRef(0)
+  const hiddenAtRef = useRef<number | null>(null)
+  const pasteCountRef = useRef(0)
+  const pastedCharsRef = useRef(0)
+
+  function trackPaste(text: string) {
+    if (text && text.length >= 40) {
+      pasteCountRef.current += 1
+      pastedCharsRef.current += text.length
+    }
+  }
+
+  useEffect(() => {
+    function onVis() {
+      if (document.hidden) {
+        hiddenAtRef.current = Date.now()
+      } else if (hiddenAtRef.current) {
+        tabSwitchesRef.current += 1
+        focusLossRef.current += (Date.now() - hiddenAtRef.current) / 1000
+        hiddenAtRef.current = null
+      }
+    }
+    document.addEventListener('visibilitychange', onVis)
+    return () => document.removeEventListener('visibilitychange', onVis)
+  }, [])
+
   useEffect(() => {
     fetch(`/api/assess/${token}/round/${roundOrder}/start`, { method: 'POST' })
       .then((r) => r.json())
@@ -179,7 +207,16 @@ export default function AssessRoundPage({ params }: { params: Promise<{ token: s
       const res = await fetch(`/api/assess/${token}/round/${roundOrder}/complete`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId }),
+        body: JSON.stringify({
+          sessionId,
+          integritySignals: {
+            tabSwitches: tabSwitchesRef.current,
+            focusLossSeconds: Math.round(focusLossRef.current),
+            pasteCount: pasteCountRef.current,
+            pastedChars: pastedCharsRef.current,
+            durationSeconds: startTime ? Math.round((Date.now() - startTime.getTime()) / 1000) : 0,
+          },
+        }),
       })
       if (res.ok) {
         setDone(true)
@@ -342,6 +379,7 @@ export default function AssessRoundPage({ params }: { params: Promise<{ token: s
               <textarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
+                onPaste={(e) => trackPaste(e.clipboardData.getData('text'))}
                 placeholder="Type your response…"
                 className="flex-1 bg-[#0B0E1C] border border-[#1A1E3A] rounded-lg px-3 py-2 text-sm text-[#F8F9FA] placeholder:text-[#AEB5E0] resize-none outline-none focus:border-[#2DE2C5]/40"
                 rows={2}
@@ -391,6 +429,13 @@ export default function AssessRoundPage({ params }: { params: Promise<{ token: s
                 language={language}
                 value={code}
                 onChange={(v) => setCode(v || '')}
+                onMount={(editor) => {
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  editor.onDidPaste((e: any) => {
+                    const model = editor.getModel()
+                    if (model) trackPaste(model.getValueInRange(e.range))
+                  })
+                }}
                 theme="vs-dark"
                 options={{ fontSize: 14, fontFamily: 'Geist Mono, Fira Code, monospace', minimap: { enabled: false }, padding: { top: 12 }, lineNumbers: 'on', scrollBeyondLastLine: false, automaticLayout: true }}
               />

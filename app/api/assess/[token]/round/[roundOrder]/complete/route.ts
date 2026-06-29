@@ -13,6 +13,7 @@ import {
   type ScoredRound,
 } from '@/lib/assessment'
 import { scoreAssessmentRound } from '@/lib/assessment-scoring'
+import { computeIntegrity, aggregateIntegrity } from '@/lib/assessment-integrity'
 import { buildGapsWithNextSteps, suggestNextSession } from '@/lib/interview-insights'
 
 export async function PATCH(
@@ -22,7 +23,7 @@ export async function PATCH(
   const { token, roundOrder: roundOrderStr } = await params
   const roundOrder = parseInt(roundOrderStr, 10)
 
-  const { sessionId } = await req.json()
+  const { sessionId, integritySignals } = await req.json()
 
   try {
     await connectDB()
@@ -101,6 +102,10 @@ export async function PATCH(
     invite.rounds[inviteRoundIdx].competencies = analysis.competencies
     invite.rounds[inviteRoundIdx].confidence = analysis.confidence
 
+    // Pillar 4 — integrity scoring from client-captured signals.
+    const integrity = computeIntegrity(integritySignals)
+    invite.rounds[inviteRoundIdx].integrity = integrity
+
     // Recompute weighted composite + gated verdict + overall confidence.
     type RoundShape = {
       status: string
@@ -124,6 +129,16 @@ export async function PATCH(
     invite.compositeScore = computeWeightedComposite(scoredRounds)
     invite.verdict = computeGatedVerdict(invite.compositeScore, scoredRounds)
     invite.confidence = computeOverallConfidence(scoredRounds)
+
+    // Aggregate integrity across completed rounds (weakest round wins).
+    const completedForIntegrity = invite.rounds.filter(
+      (r: { status: string; integrity?: { score: number } }) => r.status === 'completed'
+    )
+    const agg = aggregateIntegrity(completedForIntegrity)
+    if (agg) {
+      invite.integrityScore = agg.score
+      invite.integrityLevel = agg.level
+    }
 
     // Check if all rounds done
     const totalRounds = assessment?.rounds?.length || 0
