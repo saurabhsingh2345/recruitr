@@ -58,10 +58,12 @@ export default function AssessReportPage({ params }: { params: Promise<{ token: 
   const { token } = use(params)
   const router = useRouter()
   const [data, setData] = useState<{
-    invite: { candidateName: string; compositeScore: number; verdict: string | null; verdictReason: string; confidence?: 'high' | 'medium' | 'low' | null; integrityScore?: number | null; integrityLevel?: 'clean' | 'minor' | 'flagged' | null; userId?: string; rounds: RoundReport[]; status: string }
+    invite: { candidateName: string; compositeScore: number; verdict: string | null; verdictReason: string; confidence?: 'high' | 'medium' | 'low' | null; integrityScore?: number | null; integrityLevel?: 'clean' | 'minor' | 'flagged' | null; managerSummary?: { topStrength: string; whereTheyStruggle: string[]; probeInHumanRound: string[] }; userId?: string; rounds: RoundReport[]; status: string }
     assessment: { title: string; role: string; rounds: AssessmentRound[] }
     company: string
     isRecruiterView: boolean
+    poolPercentile?: number | null
+    poolSize?: number
   } | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -94,7 +96,7 @@ export default function AssessReportPage({ params }: { params: Promise<{ token: 
     </div>
   )
 
-  const { invite, assessment, company, isRecruiterView } = data
+  const { invite, assessment, company, isRecruiterView, poolPercentile, poolSize } = data
   const verdictLabel = invite.verdict ? VERDICT_LABELS[invite.verdict as keyof typeof VERDICT_LABELS] : null
   const verdictColor = invite.verdict ? VERDICT_COLORS[invite.verdict as keyof typeof VERDICT_COLORS] : '#888FC0'
   const scoreColor = getScoreColor(invite.compositeScore)
@@ -165,7 +167,48 @@ export default function AssessReportPage({ params }: { params: Promise<{ token: 
               &ldquo;{invite.verdictReason}&rdquo;
             </p>
           )}
+          {typeof poolPercentile === 'number' && (poolSize ?? 0) >= 2 && (
+            <p className="text-xs text-[#888FC0] mt-3">
+              Top {Math.max(1, 100 - poolPercentile)}% of {poolSize} candidates in this assessment
+            </p>
+          )}
         </div>
+
+        {/* Hiring manager summary — decision-grade, recruiter only */}
+        {isRecruiterView && invite.managerSummary && (
+          <div className="rounded-2xl border border-[#8B7CF8]/20 bg-[#8B7CF8]/[0.04] p-6 space-y-4">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-[#8B7CF8]" />
+              <span className="font-semibold text-sm">Hiring manager summary</span>
+            </div>
+            {invite.managerSummary.topStrength && (
+              <div>
+                <div className="text-xs text-[#2DE2C5] font-semibold uppercase tracking-wider mb-1">Top strength</div>
+                <p className="text-sm text-[#AEB5E0] leading-relaxed">{invite.managerSummary.topStrength}</p>
+              </div>
+            )}
+            {invite.managerSummary.whereTheyStruggle?.length > 0 && (
+              <div>
+                <div className="text-xs text-[#f59e0b] font-semibold uppercase tracking-wider mb-1">Where they&rsquo;ll struggle</div>
+                <ul className="space-y-1">
+                  {invite.managerSummary.whereTheyStruggle.map((s, i) => (
+                    <li key={i} className="text-sm text-[#AEB5E0] flex items-start gap-2"><span className="text-[#f59e0b] shrink-0">·</span>{s}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {invite.managerSummary.probeInHumanRound?.length > 0 && (
+              <div>
+                <div className="text-xs text-[#3FC5F0] font-semibold uppercase tracking-wider mb-1">Probe in your human round</div>
+                <ul className="space-y-1">
+                  {invite.managerSummary.probeInHumanRound.map((s, i) => (
+                    <li key={i} className="text-sm text-[#AEB5E0] flex items-start gap-2"><span className="text-[#3FC5F0] shrink-0">→</span>{s}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Round-by-round breakdown */}
         <div className="space-y-3">

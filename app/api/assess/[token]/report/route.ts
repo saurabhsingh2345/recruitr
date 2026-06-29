@@ -37,10 +37,28 @@ export async function GET(
     })
   )
 
+  // Pillar 5 — pool percentile: how this candidate ranks among everyone who has
+  // completed this assessment. Only meaningful (and only returned) for 2+ completed.
+  let poolPercentile: number | null = null
+  let poolSize = 0
+  if (invite.status === 'completed' && typeof invite.compositeScore === 'number') {
+    const completedScores = await AssessmentInvite.find(
+      { assessmentId: invite.assessmentId, status: 'completed' },
+      { compositeScore: 1 }
+    ).lean() as { compositeScore: number }[]
+    poolSize = completedScores.length
+    if (poolSize >= 2) {
+      const atOrBelow = completedScores.filter((c) => (c.compositeScore ?? 0) <= invite.compositeScore).length
+      poolPercentile = Math.round((atOrBelow / poolSize) * 100)
+    }
+  }
+
   return NextResponse.json({
     invite: { ...invite, rounds: roundsWithReports },
     assessment,
     company: (recruiter as { company?: string; name?: string } | null)?.company || (recruiter as { name?: string } | null)?.name || 'The company',
     isRecruiterView: isRecruiter,
+    poolPercentile,
+    poolSize,
   })
 }

@@ -159,19 +159,35 @@ export async function PATCH(
         .join('\n')
       const verdictLabel = VERDICT_LABELS[invite.verdict as keyof typeof VERDICT_LABELS] || 'Maybe'
 
+      // Pillar 5 — one call produces the decision-grade manager artifact.
       try {
-        const { text: verdictReason } = await generateText({
+        const { text } = await generateText({
           model: await getModel(),
           prompt: `A candidate received a "${verdictLabel}" verdict (composite ${invite.compositeScore}/100, confidence: ${invite.confidence}) for the role "${assessment?.role || 'the role'}".
 
 Per-competency evidence across rounds:
 ${evidenceSummary}
 
-In 1-2 sentences, give the hiring manager a specific, decision-grade rationale: what carried the verdict and the single biggest reservation. Reference concrete competencies. No fluff.`,
-          maxOutputTokens: 120,
+You are briefing the hiring manager. Return ONLY valid JSON (no markdown):
+{
+  "verdictReason": "<1-2 sentences: what carried the verdict and the single biggest reservation, referencing concrete competencies>",
+  "topStrength": "<the candidate's strongest, most role-relevant signal in one line>",
+  "whereTheyStruggle": ["<specific area they'll likely struggle in on the job>", "<another, if any>"],
+  "probeInHumanRound": ["<a specific question or topic to verify in a live human interview>", "<another>"]
+}`,
+          maxOutputTokens: 400,
           temperature: 0.4,
         })
-        invite.verdictReason = verdictReason.trim().slice(0, 300)
+        const parsed = JSON.parse(text.match(/\{[\s\S]*\}/)?.[0] || '{}')
+        invite.verdictReason = String(parsed.verdictReason || '').trim().slice(0, 300)
+          || `Candidate scored ${invite.compositeScore}/100 across all rounds.`
+        invite.managerSummary = {
+          topStrength: String(parsed.topStrength || '').slice(0, 200),
+          whereTheyStruggle: (Array.isArray(parsed.whereTheyStruggle) ? parsed.whereTheyStruggle : [])
+            .map((x: unknown) => String(x).slice(0, 200)).slice(0, 3),
+          probeInHumanRound: (Array.isArray(parsed.probeInHumanRound) ? parsed.probeInHumanRound : [])
+            .map((x: unknown) => String(x).slice(0, 200)).slice(0, 3),
+        }
       } catch {
         invite.verdictReason = `Candidate scored ${invite.compositeScore}/100 across all rounds (${invite.confidence} confidence).`
       }

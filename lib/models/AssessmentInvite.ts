@@ -48,6 +48,11 @@ export interface IAssessmentInvite extends Document {
   confidence: 'high' | 'medium' | 'low' | null
   integrityScore: number | null
   integrityLevel: 'clean' | 'minor' | 'flagged' | null
+  managerSummary?: {
+    topStrength: string
+    whereTheyStruggle: string[]
+    probeInHumanRound: string[]
+  }
   status: 'invited' | 'started' | 'completed' | 'expired'
   invitedAt: Date
   completedAt?: Date
@@ -118,6 +123,14 @@ const AssessmentInviteSchema = new Schema<IAssessmentInvite>({
   confidence: { type: String, enum: ['high', 'medium', 'low', null], default: null },
   integrityScore: { type: Number, default: null },
   integrityLevel: { type: String, enum: ['clean', 'minor', 'flagged', null], default: null },
+  managerSummary: {
+    type: {
+      topStrength: String,
+      whereTheyStruggle: { type: [String], default: [] },
+      probeInHumanRound: { type: [String], default: [] },
+    },
+    default: undefined,
+  },
   status: {
     type: String,
     enum: ['invited', 'started', 'completed', 'expired'],
