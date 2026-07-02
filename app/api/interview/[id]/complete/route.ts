@@ -5,7 +5,7 @@ import { InterviewSession } from '@/lib/models/InterviewSession'
 import { Profile } from '@/lib/models/Profile'
 import { User } from '@/lib/models/User'
 import { getModel } from '@/lib/groq'
-import { calculateCohortPercentile } from '@/lib/scoring'
+import { markPercentileStale } from '@/lib/cohort-percentile'
 import { generateText } from 'ai'
 import { processReferralMilestone } from '@/lib/referrals'
 import { checkAndIssueCertificates } from '@/lib/certificates'
@@ -301,25 +301,8 @@ Return ONLY valid JSON (no markdown, no code fences):
         }
       }
 
-      // Recalculate cohortPercentile against all public profiles
-      try {
-        const allProfiles = await Profile.find({ isPublic: true })
-          .select('parsedSkills')
-          .lean()
-        const allScores = allProfiles.map((p) => {
-          const sk = (p.parsedSkills as { proofScore: number }[]) || []
-          return sk.length
-            ? sk.reduce((s, x) => s + x.proofScore, 0) / sk.length
-            : 0
-        })
-        const mySkills = profile.parsedSkills as { proofScore: number }[]
-        const myScore = mySkills.length
-          ? mySkills.reduce((s, x) => s + x.proofScore, 0) / mySkills.length
-          : 0
-        profile.cohortPercentile = calculateCohortPercentile(myScore, allScores)
-      } catch {
-        // Non-fatal — percentile will recalculate on next generation
-      }
+      // Percentile refresh runs on cron — mark profile updated so index sync picks it up
+      markPercentileStale(session.user.id).catch(() => {})
 
       await profile.save()
     }

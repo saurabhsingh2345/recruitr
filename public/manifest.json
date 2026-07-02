@@ -1,0 +1,10 @@
+{
+  "name": "Intervue — Atlas",
+  "short_name": "Atlas",
+  "description": "Your AI career twin — matches, coaching, and verified skills on the go.",
+  "start_url": "/agent",
+  "display": "standalone",
+  "background_color": "#05060F",
+  "theme_color": "#2DE2C5",
+  "orientation": "portrait-primary"
+}

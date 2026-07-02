@@ -237,6 +237,11 @@ function CandidateCard({ candidate, onContact }: { candidate: Candidate; onConta
           {lastActive && <><Clock className="w-2.5 h-2.5" /><span>{lastActive}</span></>}
         </div>
         <div className="flex gap-2">
+          <Link href={`/recruiter/candidates/${candidate.user.username}`}>
+            <Button variant="outline" size="sm" className="border-[#1A1E3A] text-[#AEB5E0] hover:text-white text-xs h-7 w-7 p-0" title="Trust view">
+              <Shield className="w-3 h-3" />
+            </Button>
+          </Link>
           <Link href={`/p/${candidate.user.username}`} target="_blank">
             <Button variant="outline" size="sm" className="border-[#1A1E3A] text-[#AEB5E0] hover:text-white text-xs h-7 w-7 p-0">
               <ExternalLink className="w-3 h-3" />

@@ -177,6 +177,9 @@ export default function DashboardPage() {
   const [unreadMessages, setUnreadMessages] = useState(0)
   const [companyJD, setCompanyJD] = useState<string | null>(null)
   const [onboardingDismissed, setOnboardingDismissed] = useState(false)
+  const [coachingNudge, setCoachingNudge] = useState<{
+    headline: string; body: string; ctaLabel: string; ctaHref: string
+  } | null>(null)
   const [verifiedCard, setVerifiedCard] = useState<VerifiedCardData | null>(null)
   const [cardProgress, setCardProgress] = useState<VerifiedCardProgress | null>(null)
   const [issuingCard, setIssuingCard] = useState(false)
@@ -201,12 +204,13 @@ export default function DashboardPage() {
   useEffect(() => {
     async function load() {
       try {
-        const [meRes, sessRes, notifRes, cardRes, appsRes] = await Promise.all([
+        const [meRes, sessRes, notifRes, cardRes, appsRes, nudgeRes] = await Promise.all([
           fetch('/api/me'),
           fetch('/api/sessions'),
           fetch('/api/notifications'),
           fetch('/api/verified-card/mine'),
           fetch('/api/applications'),
+          fetch('/api/atlas/coaching-nudge'),
         ])
         if (meRes.ok) {
           const meData = await meRes.json()
@@ -242,6 +246,10 @@ export default function DashboardPage() {
             })
           }
         }
+        if (nudgeRes.ok) {
+          const nudgeData = await nudgeRes.json()
+          if (nudgeData.nudge) setCoachingNudge(nudgeData.nudge)
+        }
       } catch {
         toast.error('Failed to load profile data')
       } finally {
@@ -263,7 +271,13 @@ export default function DashboardPage() {
         const { sessionId } = await res.json()
         window.location.href = `/interview/${sessionId}`
       } else {
-        toast.error('Failed to start interview')
+        const err = await res.json().catch(() => ({}))
+        if (res.status === 402) {
+          toast.error(err.message || 'Monthly session limit reached')
+          window.location.href = err.upgradeUrl || '/pricing'
+        } else {
+          toast.error(err.error || 'Failed to start interview')
+        }
       }
     } catch {
       toast.error('Failed to start interview')
@@ -359,6 +373,19 @@ export default function DashboardPage() {
             <button onClick={() => setAssessmentClaimedBanner(false)} className="text-[#2DE2C5]/60 hover:text-[#2DE2C5] text-xs ml-4">✕</button>
           </div>
         )}
+        {coachingNudge && !loading && (
+          <div className="bg-[#8B7CF8]/10 border-b border-[#8B7CF8]/20 px-4 sm:px-8 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <div className="text-xs font-semibold text-[#8B7CF8] mb-0.5">Atlas · {coachingNudge.headline}</div>
+              <p className="text-sm text-foreground/60">{coachingNudge.body}</p>
+            </div>
+            <Link href={coachingNudge.ctaHref}>
+              <Button size="sm" className="bg-[#8B7CF8]/20 text-[#8B7CF8] border border-[#8B7CF8]/30 hover:bg-[#8B7CF8]/30 text-xs shrink-0">
+                {coachingNudge.ctaLabel}
+              </Button>
+            </Link>
+          </div>
+        )}
         {/* Top bar */}
         <div className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur px-4 sm:px-8 h-14 flex items-center justify-between">
           <div className="text-sm text-foreground/40">
@@ -424,7 +451,7 @@ export default function DashboardPage() {
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="rounded-2xl border border-border bg-card overflow-hidden"
+              className="rounded-2xl border border-border bg-card overflow-hidden shadow-[0_20px_60px_-20px_rgba(0,0,0,0.6),0_0_50px_-20px_rgba(45,226,197,0.18)]"
             >
               {/* Accent bar */}
               <div className="h-[3px] bg-gradient-to-r from-[#2DE2C5] via-[#3FC5F0] to-[#8B7CF8]" />
@@ -454,7 +481,7 @@ export default function DashboardPage() {
                     </div>
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <h1 className="text-lg font-semibold leading-tight">{data?.user?.name || 'Engineer'}</h1>
+                        <h1 className="h-display text-xl font-bold leading-tight">{data?.user?.name || 'Engineer'}</h1>
                         {data?.user?.openToWork && (
                           <span className="text-[9px] font-bold bg-[#2DE2C5]/10 text-[#2DE2C5] border border-[#2DE2C5]/25 px-1.5 py-0.5 rounded tracking-wider">
                             OPEN

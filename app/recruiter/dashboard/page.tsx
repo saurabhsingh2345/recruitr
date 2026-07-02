@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import {
   Search, Users, Bell, TrendingUp, Zap, Clock,
-  Building2, ArrowRight, ExternalLink, Star, ChevronRight, MessageSquare, MapPin, ClipboardList,
+  Building2, ArrowRight, ExternalLink, Star, ChevronRight, MessageSquare, MapPin, ClipboardList, Shield,
 } from 'lucide-react'
 import { RecruiterNav } from '@/components/RecruiterNav'
 import { Button } from '@/components/ui/button'
@@ -125,6 +125,11 @@ function CandidateCard({ c, onContact }: { c: CandidateMatch; onContact: (c: Can
           </div>
         )}
         <div className="flex gap-1.5 ml-auto">
+          <Link href={`/recruiter/candidates/${c.user?.username}`}>
+            <Button size="sm" variant="outline" className="h-7 w-7 p-0 border-white/[0.08] text-[#AEB5E0] hover:text-white" title="Trust view">
+              <Shield className="w-3 h-3" />
+            </Button>
+          </Link>
           <Link href={`/p/${c.user?.username}`} target="_blank">
             <Button size="sm" variant="outline" className="h-7 w-7 p-0 border-white/[0.08] text-[#AEB5E0] hover:text-white">
               <ExternalLink className="w-3 h-3" />

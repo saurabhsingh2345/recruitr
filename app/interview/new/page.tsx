@@ -198,7 +198,7 @@ function NewInterviewInner() {
             </>
           ) : (
             <>
-              <h1 className="text-2xl font-bold mb-2">Start an interview session</h1>
+              <h1 className="h-display text-3xl font-bold mb-2">Start an interview session</h1>
               <p className="text-[#AEB5E0] text-sm">Choose a format and we&apos;ll generate questions from your actual profile.</p>
             </>
           )}

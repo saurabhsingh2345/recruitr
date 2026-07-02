@@ -67,6 +67,8 @@ export interface IUser extends Document {
   // Recruiter usage-based billing: one credit = one candidate assessed.
   assessmentCredits: number
   assessmentCreditsPurchased: number  // lifetime, for analytics
+  monthlySessionCount: number
+  monthlySessionReset: Date | null
   createdAt: Date
 }
 
@@ -132,6 +134,8 @@ const UserSchema = new Schema<IUser>({
   // 3 free credits so a recruiter can try the assessment flow before paying.
   assessmentCredits: { type: Number, default: 3 },
   assessmentCreditsPurchased: { type: Number, default: 0 },
+  monthlySessionCount: { type: Number, default: 0 },
+  monthlySessionReset: { type: Date, default: null },
   createdAt: { type: Date, default: Date.now },
 })
 

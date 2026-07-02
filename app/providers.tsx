@@ -2,13 +2,12 @@
 
 import { SessionProvider } from 'next-auth/react'
 import { ThemeProvider } from 'next-themes'
-import { ParticleCanvas } from '@/components/ParticleCanvas'
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <SessionProvider>
-      <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange={false}>
-        <ParticleCanvas />
+      {/* Aurora Luminous is a single committed dark theme — force it app-wide. */}
+      <ThemeProvider attribute="class" defaultTheme="dark" forcedTheme="dark" enableSystem={false}>
         {children}
       </ThemeProvider>
     </SessionProvider>

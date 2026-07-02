@@ -27,6 +27,7 @@ import { toast } from 'sonner'
 import { VoiceOrb } from '@/components/VoiceOrb'
 import { Bot, User } from 'lucide-react'
 import { FormattedMessage } from '@/components/interview/FormattedMessage'
+import { SystemDesignCanvas } from '@/components/interview/SystemDesignCanvas'
 
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), { ssr: false })
 
@@ -98,6 +99,7 @@ export default function InterviewSessionPage() {
   const [isRunning, setIsRunning] = useState(false)
   const [isCompleting, setIsCompleting] = useState(false)
   const [receipt, setReceipt] = useState<{ overallScore: number; scoreUpdate: { skill: string; before: number; after: number; delta: number }; aiVerdict: string } | null>(null)
+  const [designNotes, setDesignNotes] = useState('')
   const [hintsUsed, setHintsUsed] = useState(0)
   const [startedAt] = useState(new Date())
   const [showOutput, setShowOutput] = useState(false)
@@ -178,11 +180,15 @@ export default function InterviewSessionPage() {
 
     setIsLoading(true)
     let aiContent = ''
+    const withDesign =
+      designNotes.trim() && sessionInfo?.format === 'system_design'
+        ? `${messageContent}\n\n[Architecture notes]\n${designNotes.trim()}`
+        : messageContent
     try {
       const res = await fetch(`/api/interview/${sessionId}/respond`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: messageContent, isHint, ...codeContext }),
+        body: JSON.stringify({ message: withDesign, isHint, ...codeContext }),
       })
 
       if (!res.ok) throw new Error('Response failed')
@@ -276,6 +282,19 @@ export default function InterviewSessionPage() {
           scoreUpdate: data.scoreUpdate ?? { skill: '', before: 0, after: 0, delta: 0 },
           aiVerdict: data.aiVerdict ?? '',
         })
+        if (typeof window !== 'undefined') {
+          const embed = new URLSearchParams(window.location.search).get('embed')
+          if (embed === '1' && window.parent !== window) {
+            window.parent.postMessage(
+              {
+                type: 'intervue_verify_complete',
+                score: data.scores?.overall ?? 0,
+                skill: sessionInfo?.targetSkill || '',
+              },
+              '*'
+            )
+          }
+        }
       } else {
         toast.error('Failed to complete session')
         setIsCompleting(false)
@@ -429,6 +448,7 @@ export default function InterviewSessionPage() {
 
   const NO_EDITOR_FORMATS = ['behavioural', 'pm_case', 'design_critique', 'ops_case', 'sales_discovery']
   const hideEditor = sessionInfo ? NO_EDITOR_FORMATS.includes(sessionInfo.format) : false
+  const isSystemDesign = sessionInfo?.format === 'system_design'
 
   // Proof receipt overlay — shown after session completion before navigating to report
   if (receipt) {
@@ -763,6 +783,10 @@ export default function InterviewSessionPage() {
 
         {/* Editor panel — hidden for non-coding formats */}
         {!hideEditor && <div className="flex-1 flex flex-col">
+          {isSystemDesign ? (
+            <SystemDesignCanvas value={designNotes} onChange={setDesignNotes} />
+          ) : (
+          <>
           <div className="h-10 border-b border-[#1A1E3A] flex items-center gap-3 px-3 shrink-0">
             <Select value={language} onValueChange={handleLanguageChange}>
               <SelectTrigger className="h-7 w-36 bg-[#0B0E1C] border-[#1A1E3A] text-xs">
@@ -864,6 +888,8 @@ export default function InterviewSessionPage() {
               </div>
             )}
           </div>
+          </>
+          )}
         </div>}
       </div>
     </div>

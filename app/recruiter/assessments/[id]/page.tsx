@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Users, Clock, Download, ExternalLink, ChevronLeft, Loader2, X, List, LayoutGrid } from 'lucide-react'
+import { Users, Clock, Download, ExternalLink, ChevronLeft, Loader2, X, List, LayoutGrid, Mail } from 'lucide-react'
 import { PoolComparison } from '@/components/recruiter/PoolComparison'
 import { PanelModal, type PanelBriefData } from '@/components/recruiter/PanelModal'
 import { Badge } from '@/components/ui/badge'
@@ -63,6 +63,24 @@ export default function AssessmentDashboardPage() {
   const [closing, setClosing] = useState(false)
   const [view, setView] = useState<'list' | 'compare'>('list')
   const [panelInvite, setPanelInvite] = useState<Invite | null>(null)
+  const [resendingId, setResendingId] = useState<string | null>(null)
+
+  async function resendInvite(inviteId: string) {
+    setResendingId(inviteId)
+    const res = await fetch(`/api/recruiter/assessments/${id}/resend`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ inviteId }),
+    })
+    const data = await res.json()
+    if (res.ok) {
+      toast.success(data.emailSent ? 'Invite resent' : `Invite link: ${data.inviteUrl}`)
+      await load()
+    } else {
+      toast.error(data.error || 'Failed to resend')
+    }
+    setResendingId(null)
+  }
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/recruiter/assessments/${id}`)
@@ -374,6 +392,21 @@ export default function AssessmentDashboardPage() {
                             className="inline-flex items-center gap-1 text-xs text-[#888FC0] hover:text-[#2DE2C5] transition-colors">
                             <ExternalLink className="w-3 h-3" /> Report
                           </Link>
+                          {(invite.status === 'expired' || invite.status === 'invited') && assessment.status === 'active' && (
+                            <button
+                              onClick={() => resendInvite(invite._id)}
+                              disabled={resendingId === invite._id}
+                              className="inline-flex items-center gap-1 text-xs text-[#888FC0] hover:text-[#f59e0b] transition-colors disabled:opacity-50"
+                              title="Resend invite email"
+                            >
+                              {resendingId === invite._id ? (
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                              ) : (
+                                <Mail className="w-3 h-3" />
+                              )}
+                              Resend
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

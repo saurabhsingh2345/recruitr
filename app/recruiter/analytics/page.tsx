@@ -11,6 +11,9 @@ import { TrendingUp, Clock, Users, Briefcase, Zap } from 'lucide-react'
 
 interface Analytics {
   funnel: { surfaced: number; applied: number; interviewed: number; offered: number }
+  assessmentFunnel?: { invited: number; completed: number; strongHire: number; withOutcome: number }
+  calibration?: { verifiedHireRate: number | null; sampleSize: number; recommendedCount: number }
+  outcomeProof?: { hireSignalsLogged: number; uniqueHiredCandidates: number }
   avgDaysToOffer: number | null
   weeklyData: Array<{ week: string; surfaced: number; applied: number }>
   skillGaps: Array<{ skill: string; count: number }>
@@ -75,6 +78,42 @@ export default function AnalyticsPage() {
             <span className="text-sm text-[#AEB5E0]">
               Average time to offer: <strong className="text-white">{data.avgDaysToOffer} days</strong>
             </span>
+          </div>
+        )}
+
+        {/* Assessment outcome loop */}
+        {data?.assessmentFunnel && data.assessmentFunnel.invited > 0 && (
+          <div className="mb-8 p-6 rounded-2xl border border-[#2DE2C5]/20 bg-[#2DE2C5]/5">
+            <h2 className="text-sm font-semibold mb-4 text-[#2DE2C5]">Assessment → hire loop</h2>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+              {[
+                { label: 'Invited', value: data.assessmentFunnel.invited },
+                { label: 'Completed', value: data.assessmentFunnel.completed },
+                { label: 'Hire verdict', value: data.assessmentFunnel.strongHire },
+                { label: 'Outcomes logged', value: data.assessmentFunnel.withOutcome },
+              ].map(({ label, value }) => (
+                <div key={label}>
+                  <div className="text-2xl font-black font-mono text-white">{value}</div>
+                  <div className="text-xs text-[#888FC0]">{label}</div>
+                </div>
+              ))}
+            </div>
+            {data.calibration && data.calibration.sampleSize > 0 && (
+              <p className="text-xs text-[#AEB5E0]">
+                Of Intervue-recommended candidates,{' '}
+                <strong className="text-white">
+                  {data.calibration.verifiedHireRate != null
+                    ? `${Math.round(data.calibration.verifiedHireRate * 100)}%`
+                    : '—'}
+                </strong>
+                {' '}were hired or advanced ({data.calibration.sampleSize} outcomes logged)
+              </p>
+            )}
+            {data.outcomeProof && data.outcomeProof.hireSignalsLogged > 0 && (
+              <p className="text-xs text-[#888FC0] mt-2">
+                Platform: {data.outcomeProof.uniqueHiredCandidates} candidates with hire signals logged
+              </p>
+            )}
           </div>
         )}
 

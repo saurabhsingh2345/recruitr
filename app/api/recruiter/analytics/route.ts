@@ -4,6 +4,10 @@ import { connectDB } from '@/lib/mongodb'
 import { RoleSpec } from '@/lib/models/RoleSpec'
 import { Handshake } from '@/lib/models/Handshake'
 import { Application } from '@/lib/models/Application'
+import { Assessment } from '@/lib/models/Assessment'
+import { AssessmentInvite } from '@/lib/models/AssessmentInvite'
+import { HireSignal } from '@/lib/models/HireSignal'
+import { computeCalibration } from '@/lib/assessment-calibration'
 
 export async function GET() {
   const session = await auth()
@@ -69,8 +73,44 @@ export async function GET() {
   // Source heatmap (day of week x hour of day for handshake activity)
   const heatmap = buildHeatmap(handshakes)
 
+  // Assessment funnel (last 12 weeks)
+  const assessmentIds = (
+    await Assessment.find({ recruiterId, createdAt: { $gte: twelveWeeksAgo } }).select('_id').lean()
+  ).map((a) => a._id)
+
+  const assessmentInvites = assessmentIds.length
+    ? await AssessmentInvite.find({ assessmentId: { $in: assessmentIds } }).lean()
+    : []
+
+  const assessmentFunnel = {
+    invited: assessmentInvites.length,
+    completed: assessmentInvites.filter((i) => i.status === 'completed').length,
+    strongHire: assessmentInvites.filter(
+      (i) => i.verdict === 'strong_hire' || i.verdict === 'hire'
+    ).length,
+    withOutcome: assessmentInvites.filter((i) => i.outcome?.decision).length,
+  }
+
+  const calibration = computeCalibration(
+    assessmentInvites.map((i) => ({
+      verdict: i.verdict,
+      outcome: i.outcome ? { decision: i.outcome.decision } : null,
+    }))
+  )
+
+  const [verifiedHolders, hireSignalUsers] = await Promise.all([
+    HireSignal.distinct('userId').then((ids) => ids.length),
+    HireSignal.countDocuments(),
+  ])
+
   return NextResponse.json({
     funnel: { surfaced, applied, interviewed, offered },
+    assessmentFunnel,
+    calibration,
+    outcomeProof: {
+      hireSignalsLogged: hireSignalUsers,
+      uniqueHiredCandidates: verifiedHolders,
+    },
     avgDaysToOffer,
     weeklyData,
     skillGaps: skillGaps.slice(0, 10),

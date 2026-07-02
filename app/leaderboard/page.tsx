@@ -173,7 +173,7 @@ export default async function LeaderboardPage({
             <Trophy className="w-4 h-4 text-[#ffd700]" />
             <span className="text-xs text-[#888FC0] uppercase tracking-wider">India top engineers</span>
           </div>
-          <h1 className="text-3xl font-bold mb-1">Leaderboard</h1>
+          <h1 className="h-display text-4xl font-bold mb-1 text-foreground">Leaderboard</h1>
           <p className="text-sm text-[#888FC0]">
             Ranked by verified proof scores — {skill ? `${skill} skill` : 'composite average'}{city ? ` in ${city}` : ' across India'}.
           </p>

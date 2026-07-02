@@ -19,6 +19,7 @@ export default auth((req) => {
     '/recruiter/setup',
     '/recruiter/roles',
     '/recruiter/assessments',
+    '/recruiter/candidates',
   ]
 
   // Candidate-protected routes
@@ -71,5 +72,6 @@ export const config = {
     '/recruiter/setup/:path*',
     '/recruiter/roles/:path*',
     '/recruiter/assessments/:path*',
+    '/recruiter/candidates/:path*',
   ],
 }

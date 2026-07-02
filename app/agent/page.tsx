@@ -355,7 +355,7 @@ function AgentPageInner() {
   const resolved = handshakes.filter((h) => h.status !== 'surfaced_to_candidate')
 
   return (
-    <div className="h-screen flex overflow-hidden bg-[#05060F] text-white">
+    <div className="h-screen flex overflow-hidden bg-[#05060F] text-white max-lg:flex-col">
 
       {/* ── LEFT PANEL — Chat (full on mobile, 42% on desktop) ── */}
       <div className="flex-1 lg:flex-none lg:w-[42%] flex flex-col border-r border-white/[0.05]">

@@ -19,6 +19,18 @@
     {
       "path": "/api/cron/index-profiles",
       "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/assessments-expire",
+      "schedule": "0 4 * * *"
+    },
+    {
+      "path": "/api/cron/recalculate-percentiles",
+      "schedule": "0 5 * * *"
+    },
+    {
+      "path": "/api/cron/atlas-coaching",
+      "schedule": "0 7 * * 3"
     }
   ]
 }

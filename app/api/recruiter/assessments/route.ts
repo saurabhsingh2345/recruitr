@@ -4,65 +4,8 @@ import { connectDB } from '@/lib/mongodb'
 import { Assessment } from '@/lib/models/Assessment'
 import { AssessmentInvite } from '@/lib/models/AssessmentInvite'
 import { User } from '@/lib/models/User'
-import { Resend } from 'resend'
+import { sendAssessmentInviteEmail } from '@/lib/assessment-email'
 import crypto from 'crypto'
-
-const isDev = process.env.NODE_ENV !== 'production'
-const resend = !isDev && process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null
-const BASE = process.env.NEXTAUTH_URL || 'http://localhost:3000'
-// Use verified domain in prod (e.g. noreply@yourdomain.com); sandbox works for testing
-const FROM = process.env.RESEND_FROM_EMAIL || 'Intervue <onboarding@resend.dev>'
-
-async function sendInviteEmail(
-  to: string,
-  candidateName: string,
-  role: string,
-  company: string,
-  roundCount: number,
-  deadline: Date,
-  token: string,
-) {
-  if (!resend) {
-    console.log(`[email] Assessment invite for ${to}: ${BASE}/assess/${token}`)
-    return
-  }
-  const deadlineStr = deadline.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
-  try {
-    await resend.emails.send({
-      from: FROM,
-      to,
-      subject: `You've been invited to interview for ${role} at ${company}`,
-      html: `
-        <div style="font-family:system-ui,sans-serif;background:#0F1117;color:#F8F9FA;padding:32px;border-radius:12px;max-width:520px">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:24px">
-            <div style="width:24px;height:24px;background:#2DE2C5;border-radius:6px;display:flex;align-items:center;justify-content:center">
-              <span style="color:#0F1117;font-weight:700;font-size:12px">I</span>
-            </div>
-            <span style="font-weight:700;font-size:14px">intervue</span>
-          </div>
-          <h2 style="margin:0 0 8px;font-size:20px">Hi ${candidateName || 'there'},</h2>
-          <p style="color:#8B8FA8;margin:0 0 16px;font-size:15px">
-            You've been invited to interview for <strong style="color:#F8F9FA">${role}</strong> at <strong style="color:#F8F9FA">${company}</strong>.
-          </p>
-          <div style="background:#080A18;border-radius:8px;padding:16px;margin-bottom:24px">
-            <div style="font-size:13px;color:#8B8FA8;margin-bottom:8px">Assessment details</div>
-            <div style="font-size:14px;color:#F8F9FA;margin-bottom:4px">📋 ${roundCount} round${roundCount !== 1 ? 's' : ''}</div>
-            <div style="font-size:14px;color:#F8F9FA;margin-bottom:4px">⏰ Complete by <strong>${deadlineStr}</strong></div>
-            <div style="font-size:13px;color:#8B8FA8;margin-top:8px">No account required — complete at your own pace.</div>
-          </div>
-          <a href="${BASE}/assess/${token}"
-             style="display:inline-block;background:#2DE2C5;color:#0F1117;padding:12px 24px;border-radius:8px;font-weight:600;font-size:15px;text-decoration:none">
-            Start assessment →
-          </a>
-          <p style="color:#4d5066;font-size:11px;margin-top:24px">
-            This link is unique to you. Don't share it. Expires on ${deadlineStr}.
-          </p>
-        </div>`,
-    })
-  } catch (err) {
-    console.error('[email] Assessment invite failed:', err)
-  }
-}
 
 export async function POST(req: NextRequest) {
   const session = await auth()
@@ -122,15 +65,15 @@ export async function POST(req: NextRequest) {
       invitedAt: new Date(),
     })
     invites.push(invite)
-    sendInviteEmail(
-      candidate.email,
-      candidate.name || '',
+    sendAssessmentInviteEmail({
+      to: candidate.email,
+      candidateName: candidate.name || '',
       role,
-      user.company || user.name,
-      rounds.length,
-      new Date(deadline),
+      company: user.company || user.name,
+      roundCount: rounds.length,
+      deadline: new Date(deadline),
       token,
-    ).catch(() => {})
+    }).catch(() => {})
   }
 
   // Consume one credit per invite actually created.

@@ -7,10 +7,11 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-poppins);
+  --font-sans: var(--font-geist-sans);
   --font-geist: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
+  --font-display: var(--font-display);
+  --font-heading: var(--font-display);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -130,43 +131,43 @@
   --panel-shadow: 0 1px 4px rgba(30,20,5,0.1), 0 1px 0 rgba(255,255,255,0.7) inset;
 }
 
-/* ── Dark mode ── */
+/* ── Dark mode ── Aurora Luminous: deep blue-violet void + luminous teal ── */
 .dark {
-  --background: #050508;
-  --foreground: #ECF0FF;
-  --card: #0a0c1a;
-  --card-foreground: #ECF0FF;
-  --popover: #0a0c1a;
-  --popover-foreground: #ECF0FF;
-  --primary: #00D4AA;
-  --primary-foreground: #050508;
-  --secondary: #11142a;
-  --secondary-foreground: rgba(255,255,255,0.5);
-  --muted: #11142a;
-  --muted-foreground: rgba(255,255,255,0.45);
-  --accent: #00D4AA;
-  --accent-foreground: #050508;
+  --background: #08080F;
+  --foreground: #F2F4FF;
+  --card: #0E1022;
+  --card-foreground: #F2F4FF;
+  --popover: #0E1022;
+  --popover-foreground: #F2F4FF;
+  --primary: #2DE2C5;
+  --primary-foreground: #050510;
+  --secondary: #14172E;
+  --secondary-foreground: rgba(255,255,255,0.72);
+  --muted: #14172E;
+  --muted-foreground: #9AA3C8;
+  --accent: #2DE2C5;
+  --accent-foreground: #050510;
   --destructive: oklch(0.577 0.245 27.325);
-  --border: rgba(255,255,255,0.07);
-  --input: #11142a;
-  --ring: #00D4AA;
-  --chart-1: #00D4AA;
+  --border: rgba(150,160,255,0.10);
+  --input: rgba(150,160,255,0.08);
+  --ring: #2DE2C5;
+  --chart-1: #2DE2C5;
   --chart-2: #3FC5F0;
   --chart-3: #f59e0b;
   --chart-4: #8B7CF8;
   --chart-5: #f43f5e;
-  --sidebar: #04050e;
-  --sidebar-foreground: #ECF0FF;
-  --sidebar-primary: #00D4AA;
-  --sidebar-primary-foreground: #050508;
-  --sidebar-accent: rgba(255,255,255,0.06);
-  --sidebar-accent-foreground: #ECF0FF;
-  --sidebar-border: rgba(255,255,255,0.05);
-  --sidebar-ring: #00D4AA;
-  /* panel tokens */
-  --panel-bg: #0a0c1a;
-  --panel-border: rgba(255,255,255,0.06);
-  --panel-shadow: 0 1px 3px rgba(0,0,0,0.4), 0 1px 0 rgba(255,255,255,0.03) inset;
+  --sidebar: #0A0B16;
+  --sidebar-foreground: #F2F4FF;
+  --sidebar-primary: #2DE2C5;
+  --sidebar-primary-foreground: #050510;
+  --sidebar-accent: rgba(160,170,255,0.08);
+  --sidebar-accent-foreground: #F2F4FF;
+  --sidebar-border: rgba(160,170,255,0.10);
+  --sidebar-ring: #2DE2C5;
+  /* panel tokens — solid elevated surface */
+  --panel-bg: #0E1022;
+  --panel-border: rgba(160,170,255,0.13);
+  --panel-shadow: 0 8px 28px rgba(0,0,0,0.4), 0 1px 0 rgba(255,255,255,0.04) inset;
 }
 
 @layer base {
@@ -175,12 +176,18 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-family: var(--font-poppins), system-ui, -apple-system, sans-serif;
+    font-family: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
     -webkit-font-smoothing: antialiased;
     font-size: 15.4px; /* 14px × 1.1 */
+    letter-spacing: -0.011em;
+  }
+  /* Display font for headings — distinctive, characterful */
+  h1, h2, h3, .font-display {
+    font-family: var(--font-display), var(--font-geist-sans), system-ui, sans-serif;
+    letter-spacing: -0.025em;
   }
   html {
-    color-scheme: light dark;
+    color-scheme: dark;
     font-size: 110%;
   }
   /* Smooth theme transitions */
@@ -709,3 +716,154 @@ html:not(.dark) input[class*="border-[#1A1E3A]"],
 html:not(.dark) textarea[class*="border-[#1A1E3A]"] {
   border-color: rgba(30,20,5,0.25) !important;
 }
+
+/* ═══════════════════════════════════════════════════════════
+   AURORA LUMINOUS — global design language (dark-first, single mode)
+   Applied app-wide: atmosphere, glass, glow, orchestrated motion.
+═══════════════════════════════════════════════════════════ */
+
+/* ── Global atmosphere ───────────────────────────────────────
+   Fixed aurora mesh + film grain behind everything. The page
+   canvases are made translucent below so this shows through on
+   EVERY page without touching each one. */
+.aurora-stage {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  /* Calm, restrained ambient wash — present, never competing with content. */
+  background:
+    radial-gradient(55% 45% at 10% -10%, rgba(45,226,197,0.07) 0%, transparent 55%),
+    radial-gradient(50% 40% at 92% -5%, rgba(139,124,248,0.06) 0%, transparent 55%),
+    radial-gradient(55% 50% at 80% 100%, rgba(63,197,240,0.045) 0%, transparent 55%),
+    #08080F;
+}
+@keyframes aurora-drift {
+  0%   { transform: translate(0, 0) scale(1); }
+  50%  { transform: translate(3%, -2%) scale(1.06); }
+  100% { transform: translate(-2%, 2%) scale(1.02); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .aurora-stage::before { animation: none; }
+}
+
+/* Keep app content above the aurora stage */
+body > * { position: relative; z-index: 1; }
+
+/* Make page canvases translucent so the aurora shows on every page.
+   These are the full-bleed page background hexes used across the app. */
+.dark [class*="bg-[#050508]"],
+.dark [class*="bg-[#05060F]"],
+.dark [class*="bg-[#05060f]"],
+.dark [class*="bg-[#04050e]"],
+.dark [class*="bg-[#07070E]"],
+.dark [class*="bg-[#0B0D1A]"] {
+  background-color: transparent !important;
+}
+
+/* Card/panel canvases → SOLID, readable elevated surfaces.
+   (Translucency over a busy backdrop kills legibility — cards stay opaque.) */
+.dark [class*="bg-[#0a0c1a]"],
+.dark [class*="bg-[#0A0C1A]"],
+.dark [class*="bg-[#080A18]"],
+.dark [class*="bg-[#0B0E1C]"],
+.dark [class*="bg-[#0d1020]"],
+.dark [class*="bg-[#0D1020]"],
+.dark [class*="bg-[#0B0D1A]"] {
+  background-color: #0E1022 !important;
+}
+/* Slightly lighter inner / nested surfaces for layering */
+.dark [class*="bg-[#11142a]"],
+.dark [class*="bg-[#12152A]"] {
+  background-color: #14172E !important;
+}
+
+/* Borders → cool luminous hairlines, with enough contrast to define edges */
+.dark [class*="border-white/[0.04]"],
+.dark [class*="border-white/[0.05]"],
+.dark [class*="border-white/[0.06]"],
+.dark [class*="border-white/[0.07]"],
+.dark [class*="border-white/[0.08]"] {
+  border-color: rgba(160,170,255,0.13) !important;
+}
+
+/* ── Luminous glass surface (use directly on cards) ───────────── */
+.glass {
+  position: relative;
+  background: rgba(18, 20, 38, 0.45);
+  backdrop-filter: blur(18px) saturate(1.3);
+  -webkit-backdrop-filter: blur(18px) saturate(1.3);
+  border: 1px solid rgba(150,160,255,0.12);
+  border-radius: 18px;
+  box-shadow:
+    0 10px 40px -10px rgba(0,0,0,0.6),
+    0 1px 0 rgba(255,255,255,0.06) inset;
+}
+.glass-hover { transition: transform .3s cubic-bezier(.2,.7,.2,1), border-color .3s, box-shadow .3s; }
+.glass-hover:hover {
+  transform: translateY(-3px);
+  border-color: rgba(45,226,197,0.35);
+  box-shadow:
+    0 24px 60px -16px rgba(0,0,0,0.7),
+    0 0 0 1px rgba(45,226,197,0.10),
+    0 0 40px -8px rgba(45,226,197,0.18),
+    0 1px 0 rgba(255,255,255,0.08) inset;
+}
+
+/* ── Contrast floor — lift the faintest text to readable levels ──────
+   The app leans on very low-opacity white for muted text; on dark that
+   reads as invisible. Raise the floor without flattening hierarchy. */
+.dark [class~="text-white/20"] { color: rgba(255,255,255,0.42) !important; }
+.dark [class~="text-white/25"] { color: rgba(255,255,255,0.48) !important; }
+.dark [class~="text-white/30"] { color: rgba(255,255,255,0.54) !important; }
+.dark [class~="text-white/35"] { color: rgba(255,255,255,0.60) !important; }
+.dark [class~="text-white/40"] { color: rgba(255,255,255,0.66) !important; }
+.dark [class~="text-white/45"] { color: rgba(255,255,255,0.70) !important; }
+.dark [class~="text-white/50"] { color: rgba(255,255,255,0.74) !important; }
+.dark [class~="text-foreground/30"] { color: rgba(242,244,255,0.56) !important; }
+.dark [class~="text-foreground/35"] { color: rgba(242,244,255,0.60) !important; }
+.dark [class~="text-foreground/40"] { color: rgba(242,244,255,0.66) !important; }
+.dark [class~="text-foreground/45"] { color: rgba(242,244,255,0.70) !important; }
+.dark [class~="text-foreground/50"] { color: rgba(242,244,255,0.74) !important; }
+/* Common hardcoded muted tones → brighter, readable lavender-greys */
+.dark [class*="text-[#888FC0]"] { color: #A6AEDB !important; }
+.dark [class*="text-[#555B8A]"] { color: #8B93C2 !important; }
+.dark [class*="text-[#666]"]    { color: #8E96BE !important; }
+.dark [class*="text-[#555]"]    { color: #868EB6 !important; }
+
+/* Aurora gradient text */
+.text-aurora {
+  background: linear-gradient(110deg, #2DE2C5 0%, #3FC5F0 40%, #8B7CF8 80%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Display heading helper */
+.h-display { font-family: var(--font-display), system-ui, sans-serif; letter-spacing: -0.03em; line-height: 1.02; }
+
+/* ── Orchestrated entrance — stagger via .reveal + delay vars ──── */
+@keyframes reveal-up {
+  from { opacity: 0; transform: translateY(16px); filter: blur(6px); }
+  to   { opacity: 1; transform: translateY(0); filter: blur(0); }
+}
+.reveal { opacity: 0; animation: reveal-up 0.7s cubic-bezier(.2,.7,.2,1) forwards; }
+.reveal-1 { animation-delay: .06s; }
+.reveal-2 { animation-delay: .14s; }
+.reveal-3 { animation-delay: .24s; }
+.reveal-4 { animation-delay: .36s; }
+.reveal-5 { animation-delay: .50s; }
+@media (prefers-reduced-motion: reduce) {
+  .reveal { opacity: 1; animation: none; }
+}
+
+/* Focus ring — luminous */
+.dark *:focus-visible { outline: 2px solid rgba(45,226,197,0.6); outline-offset: 2px; }
+
+/* Selection */
+::selection { background: rgba(45,226,197,0.25); color: #EEF1FF; }
+
+/* Refined scrollbar for the aurora world */
+.dark ::-webkit-scrollbar-track { background: transparent; }
+.dark ::-webkit-scrollbar-thumb { background: rgba(150,160,255,0.16); border-radius: 4px; }
+.dark ::-webkit-scrollbar-thumb:hover { background: rgba(45,226,197,0.35); }

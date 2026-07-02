@@ -1,14 +1,15 @@
 import type { Metadata } from 'next'
-import { Poppins, Geist_Mono, Geist } from 'next/font/google'
+import { Bricolage_Grotesque, Geist_Mono, Geist } from 'next/font/google'
 import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { Providers } from './providers'
 import './globals.css'
 
-const poppins = Poppins({
-  variable: '--font-poppins',
+// Distinctive characterful display face for headings — the aurora voice.
+const display = Bricolage_Grotesque({
+  variable: '--font-display',
   subsets: ['latin'],
-  weight: ['300', '400', '500', '600', '700', '800', '900'],
+  weight: ['400', '500', '600', '700', '800'],
   display: 'swap',
 })
 
@@ -26,6 +27,12 @@ export const metadata: Metadata = {
   title: 'Intervue — AI-Native Engineering Identity Platform',
   description:
     'Turn your GitHub and projects into a verified engineering profile. AI interviews that learn you, proof-of-skill scores recruiters trust.',
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    title: 'Atlas',
+    statusBarStyle: 'black-translucent',
+  },
   openGraph: {
     title: 'Intervue',
     description: 'Know what you\'ve actually built.',
@@ -38,9 +45,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${poppins.variable} ${geistSans.variable} ${geistMono.variable} h-full`}
+      className={`dark ${display.variable} ${geistSans.variable} ${geistMono.variable} h-full`}
     >
       <body className="min-h-full bg-background text-foreground" suppressHydrationWarning>
+        {/* Global aurora atmosphere — sits behind every page */}
+        <div className="aurora-stage" aria-hidden="true" />
         <Providers>
           <TooltipProvider>
             {children}

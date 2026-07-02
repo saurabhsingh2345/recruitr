@@ -235,7 +235,7 @@ export default async function PublicProfilePage({ params, searchParams }: Params
             <div className="text-right shrink-0 flex flex-col items-end gap-3">
               {profile.cohortPercentile > 0 && (
                 <div>
-                  <div className="font-mono text-4xl font-medium leading-none">
+                  <div className="font-mono text-4xl font-semibold leading-none text-aurora [text-shadow:0_0_40px_rgba(45,226,197,0.3)]">
                     Top {100 - profile.cohortPercentile}%
                   </div>
                   <div className="text-xs text-[#888FC0] mt-1">

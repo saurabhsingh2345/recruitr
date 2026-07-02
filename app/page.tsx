@@ -171,13 +171,13 @@ export default function LandingPage() {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.06 }}
-            className="text-[3.5rem] md:text-[5.5rem] lg:text-[7rem] font-black leading-[0.92] tracking-[-0.03em] mb-8"
+            className="h-display text-[3.5rem] md:text-[5.5rem] lg:text-[7rem] font-extrabold leading-[0.9] tracking-[-0.04em] mb-8"
           >
-            <span className="text-white">Stop listing</span>
+            <span className="text-white/95">Stop listing</span>
             <br />
-            <span className="text-white">skills.</span>
+            <span className="text-white/95">skills.</span>
             <br />
-            <span className="text-[#2DE2C5]">Prove them.</span>
+            <span className="text-aurora [text-shadow:0_0_60px_rgba(45,226,197,0.35)]">Prove them.</span>
           </motion.h1>
 
           <motion.p
@@ -737,6 +737,7 @@ export default function LandingPage() {
           </div>
           <div className="flex items-center gap-6 text-xs text-white/25">
             <Link href="/onboarding" className="hover:text-white/60 transition-colors">Sign in</Link>
+            <Link href="/questions" className="hover:text-white/60 transition-colors">Questions</Link>
             <Link href="/leaderboard" className="hover:text-white/60 transition-colors">Leaderboard</Link>
             <Link href="/companies" className="hover:text-white/60 transition-colors">Companies</Link>
             <Link href="/recruiter" className="hover:text-white/60 transition-colors">Recruiters</Link>

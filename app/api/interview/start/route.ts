@@ -37,10 +37,39 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { format, targetSkill, companyJD, rigorConditions, companyTrackId, roundIndex } = await req.json()
+    const { format, targetSkill, companyJD, rigorConditions, companyTrackId, roundIndex, embedMode } = await req.json()
     await connectDB()
 
     const user = await User.findById(session.user.id)
+    if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 })
+
+    const isPro = user.subscriptionTier === 'pro' && user.subscriptionStatus === 'active'
+    const FREE_MONTHLY_LIMIT = 3
+
+    if (!isPro && !embedMode) {
+      const now = new Date()
+      let resetAt = user.monthlySessionReset ? new Date(user.monthlySessionReset) : null
+      if (!resetAt || now >= resetAt) {
+        user.monthlySessionCount = 0
+        const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+        user.monthlySessionReset = nextMonth
+        resetAt = nextMonth
+      }
+      if ((user.monthlySessionCount ?? 0) >= FREE_MONTHLY_LIMIT) {
+        return NextResponse.json(
+          {
+            error: 'upgrade_required',
+            message: `Free tier includes ${FREE_MONTHLY_LIMIT} sessions per month. Upgrade to Pro for unlimited.`,
+            upgradeUrl: '/pricing',
+            limit: FREE_MONTHLY_LIMIT,
+          },
+          { status: 402 }
+        )
+      }
+      user.monthlySessionCount = (user.monthlySessionCount ?? 0) + 1
+      await user.save()
+    }
+
     const profile = await Profile.findOne({ userId: user?._id })
 
     // Get project context + candidate memory
@@ -134,7 +163,15 @@ Start the interview now with your opening question. Be specific to their actual 
         ? { companyMode: { jdSnippet: '', style: trackAddition.trim(), company: companyTrackId || '' } }
         : {}),
       ...(rigorConditions ? { rigorConditions: { ...rigorConditions, capturedAt: new Date() } } : {}),
-      ...(companyTrackId ? { metadata: { companyTrackId, roundIndex: roundIndex ?? 0 } } : {}),
+      metadata: {
+        ...(companyTrackId ? { companyTrackId, roundIndex: roundIndex ?? 0 } : {}),
+        ...(embedMode
+          ? {
+              embedMode: true,
+              company: typeof embedMode === 'object' ? embedMode.company || '' : '',
+            }
+          : {}),
+      },
     })
 
     return NextResponse.json({

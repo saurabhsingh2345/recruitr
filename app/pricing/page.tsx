@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
 
 const FREE_FEATURES = [
-  { icon: Zap,         text: 'Unlimited AI interview sessions' },
+  { icon: Zap,         text: '3 AI interview sessions per month' },
   { icon: GitBranch,   text: 'GitHub profile analysis' },
   { icon: Shield,      text: 'Public profile + badges + proof pages' },
   { icon: Sparkles,    text: 'Atlas proactive skill insights' },
@@ -38,11 +38,11 @@ const FAQS = [
   },
   {
     q: 'Is the free tier really unlimited?',
-    a: 'Yes. You can run as many AI interviews as you want, publish your profile, share badges, and use Atlas on the free tier forever.',
+    a: 'Free includes 3 AI interview sessions per month, plus your public profile, badges, proof pages, and Atlas coaching. Upgrade to Pro for unlimited sessions and all data sources.',
   },
   {
     q: 'Why upgrade to Pro?',
-    a: 'Pro is for candidates who want to build the strongest possible proof — pulling signals from LinkedIn, StackOverflow, and DevTo in addition to GitHub, getting email alerts when scores change, and appearing higher in recruiter search results.',
+    a: 'Pro is for candidates who want unlimited sessions, all data sources (LinkedIn, StackOverflow, DevTo), score-change alerts, and priority placement in recruiter search.',
   },
 ]
 

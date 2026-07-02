@@ -240,7 +240,7 @@ function OnboardingPageInner() {
                 <div className="w-16 h-16 rounded-2xl bg-[#2DE2C5]/10 border border-[#2DE2C5]/20 flex items-center justify-center mx-auto mb-6">
                   <Code2 className="w-8 h-8 text-[#2DE2C5]" />
                 </div>
-                <h1 className="text-3xl font-bold mb-3">Build your verified profile</h1>
+                <h1 className="h-display text-4xl font-bold mb-3 text-foreground">Build your verified profile</h1>
                 <p className="text-[#AEB5E0] mb-8 text-sm leading-relaxed">
                   Connect GitHub or X to let our AI analyze your work and build a proof-based engineering identity.
                 </p>

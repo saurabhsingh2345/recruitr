@@ -162,7 +162,7 @@ function FirstScoreScreen({
           className="relative mb-6">
           <ScoreRing score={score} size={160} />
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className="text-5xl font-bold font-mono" style={{ color }}>{score}</span>
+            <span className="text-5xl font-bold font-mono" style={{ color, textShadow: `0 0 40px ${color}55` }}>{score}</span>
             <span className="text-sm text-foreground/40 font-medium">/100</span>
           </div>
         </motion.div>
@@ -457,7 +457,7 @@ export default function InterviewReportPage() {
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-foreground/[0.08] bg-foreground/[0.03] text-xs text-foreground/40 mb-4">
               Session complete
             </div>
-            <h1 className="text-3xl font-bold mb-2">Interview Report</h1>
+            <h1 className="h-display text-4xl font-bold mb-2 text-foreground">Interview Report</h1>
             <p className="text-foreground/40 text-sm">
               {FORMAT_LABELS[report.format] || report.format} · {report.targetSkill} ·{' '}
               {new Date(report.completedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}

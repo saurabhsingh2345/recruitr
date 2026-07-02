@@ -146,6 +146,30 @@ export default async function ProofPage({ params }: Params) {
         </Link>
       </nav>
 
+      {/* Recruiter CTA — badge clicks land here */}
+      <div className="border-b border-[#2DE2C5]/20 bg-gradient-to-r from-[#2DE2C5]/10 via-[#8B7CF8]/5 to-transparent">
+        <div className="max-w-2xl mx-auto px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-wider text-[#2DE2C5] mb-1">For recruiters</div>
+            <p className="text-sm text-foreground/70">
+              This score is verified by AI interview + evidence — not self-reported.
+            </p>
+          </div>
+          <div className="flex gap-2 shrink-0">
+            <Link href={`/recruiter/candidates/${username}`}>
+              <Button size="sm" variant="outline" className="border-white/10 text-xs h-8">
+                Trust view
+              </Button>
+            </Link>
+            <Link href="/recruiter/login">
+              <Button size="sm" className="btn-supernova text-xs h-8 font-semibold">
+                Search verified talent
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </div>
+
       {/* Hero glow */}
       <div className="absolute inset-x-0 top-14 h-72 pointer-events-none"
         style={{ background: `radial-gradient(ellipse 60% 100% at 50% 0%, ${color}0D, transparent 70%)` }} />

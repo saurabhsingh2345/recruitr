@@ -1,13 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { signOut, useSession } from 'next-auth/react'
-import { useTheme } from 'next-themes'
 import {
   Search, LayoutDashboard, Briefcase,
-  MessageSquare, Settings, LogOut, Sun, Moon, Building2, ClipboardList,
+  MessageSquare, Settings, LogOut, Building2, ClipboardList,
 } from 'lucide-react'
 
 const MAIN_NAV = [
@@ -46,16 +44,16 @@ function NavItem({
   return (
     <Link
       href={href}
-      className={`group relative flex items-center gap-2.5 px-3 py-2 rounded-md text-[13px] font-medium transition-all duration-150 ${
+      className={`group relative flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-all duration-200 ${
         active
-          ? 'bg-foreground/[0.09] text-foreground'
-          : 'text-foreground/40 hover:text-foreground/75 hover:bg-foreground/[0.04]'
+          ? 'bg-[#2DE2C5]/[0.10] text-foreground shadow-[0_0_24px_-8px_rgba(45,226,197,0.45)]'
+          : 'text-foreground/45 hover:text-foreground/85 hover:bg-white/[0.04]'
       }`}
     >
-      {active && <span className="absolute left-0 top-1.5 bottom-1.5 w-[2.5px] rounded-r-full bg-[#2DE2C5]" />}
+      {active && <span className="absolute left-0 top-1.5 bottom-1.5 w-[2.5px] rounded-r-full bg-[#2DE2C5] shadow-[0_0_10px_rgba(45,226,197,0.8)]" />}
       <Icon
         className={`w-4 h-4 shrink-0 transition-colors ${
-          active ? 'text-[#2DE2C5]' : 'text-foreground/35 group-hover:text-foreground/60'
+          active ? 'text-[#2DE2C5]' : 'text-foreground/40 group-hover:text-foreground/70'
         }`}
       />
       <span className="flex-1">{label}</span>
@@ -84,25 +82,23 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 export function RecruiterNav({ unread = 0 }: { unread?: number }) {
   const { data: session } = useSession()
-  const { resolvedTheme, setTheme } = useTheme()
-  const [mounted, setMounted] = useState(false)
-  useEffect(() => setMounted(true), [])
-  const isDark = resolvedTheme === 'dark'
 
   const displayName = session?.user?.name || 'Recruiter'
   const initial = (displayName[0] || 'R').toUpperCase()
 
   return (
-    <aside className="w-[232px] shrink-0 h-screen flex flex-col bg-sidebar border-r border-sidebar-border relative z-10">
+    <aside className="w-[232px] shrink-0 h-screen flex flex-col bg-sidebar backdrop-blur-2xl border-r border-sidebar-border relative z-10">
 
       {/* Wordmark */}
       <div className="h-[56px] flex items-center px-4 shrink-0 border-b border-sidebar-border/60">
         <Link href="/recruiter/dashboard" className="flex items-center gap-2.5">
-          <svg width="22" height="22" viewBox="0 0 22 22" fill="none" className="shrink-0">
-            <rect width="22" height="22" rx="5" fill="#2DE2C5"/>
-            <path d="M7 15L11 7L15 15" stroke="#04050e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-          <span className="font-bold text-[14px] tracking-[-0.02em] text-sidebar-foreground">intervue</span>
+          <span className="w-[22px] h-[22px] shrink-0 rounded-[6px] shadow-[0_0_16px_-2px_rgba(45,226,197,0.6)]">
+            <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+              <rect width="22" height="22" rx="6" fill="#2DE2C5"/>
+              <path d="M7 15L11 7L15 15" stroke="#05060F" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </span>
+          <span className="font-display font-bold text-[15px] tracking-[-0.03em] text-sidebar-foreground">intervue</span>
         </Link>
       </div>
 
@@ -142,17 +138,10 @@ export function RecruiterNav({ unread = 0 }: { unread?: number }) {
       </nav>
 
       {/* Footer */}
-      <div className="px-2 py-2 border-t border-sidebar-border/60 space-y-0.5">
-        <button
-          onClick={() => setTheme(isDark ? 'light' : 'dark')}
-          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-[13px] font-medium text-foreground/35 hover:text-foreground/65 hover:bg-foreground/[0.04] transition-colors"
-        >
-          {mounted && (isDark ? <Sun className="w-4 h-4 shrink-0" /> : <Moon className="w-4 h-4 shrink-0" />)}
-          {mounted ? (isDark ? 'Light mode' : 'Dark mode') : 'Theme'}
-        </button>
+      <div className="px-2 py-2 border-t border-sidebar-border/60">
         <button
           onClick={() => signOut({ callbackUrl: '/' })}
-          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-[13px] font-medium text-foreground/25 hover:text-foreground/55 hover:bg-foreground/[0.04] transition-colors"
+          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium text-foreground/30 hover:text-foreground/60 hover:bg-white/[0.04] transition-colors"
         >
           <LogOut className="w-4 h-4 shrink-0" />
           Sign out
